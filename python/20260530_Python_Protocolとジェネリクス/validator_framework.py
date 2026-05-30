@@ -32,7 +32,7 @@ class AllPassValidator[T]:
         self._validators = validators
 
     def validate(self, value: T) -> bool:
-        return all([validator.validate(value) for validator in self._validators])
+        return all(validator.validate(value) for validator in self._validators)
 
 
 if __name__ == "__main__":

@@ -27,3 +27,4 @@ email_v = StringRegexValidator(r'^\S+@\S+\.\S+$')
 # 合成（同じ型のものだけまとめられるように）
 validators: AllPassValidator[int] = AllPassValidator([age_v])
 ```
+

@@ -1,53 +1,85 @@
+/*
+ * 勘違いポイント
+ * フックのイメージがよくわかってなかった
+ * webpackなどの内部で使われているらしい
+ * タイミング: 実行前 / 組立開始 / 組立中 / ファイル書き出し前 / 完了時
+ * に対してそこに実行したい処理（プラグイン）を動的に登録できる仕組み
+ * 1. コンストラクタで受け取る引数は、今から定義するフックが受け付ける引数の説明になっている
+ *    (配列の第n要素は第n引数の説明）
+ * 2. 実行タイミングになった際に、call / promise の引数に具体的な引数が指定される
+ */
+
+class PluginError extends Error {}
+
 class HookBase {
     constructor(data) {
         this.data = data;
-        this.tasks = [];
+        this.taps = new Map();
+        this.errors = [];
     }
 
-    tapPromise({ name, promise }) {
-       this.tasks.push({name, promise});
+    tap(name, fn) {
+       this.taps.set(name, fn);
     }
 
-    promise() {}
 }
 
 class SyncHook extends HookBase {
-    promise() {
-        for (const task of this.tasks) {
-            console.log(`${task.name} 実行中`);
-            this.data = task.promise(this.data);
-        }
-        return this.data;
-    }
-}
-
-class AsyncSeriesHook extends HookBase {
-    async promise() {
-        try {
-            for (const task of this.tasks) {
-                console.log(`${task.name} 実行中`);
-                this.data = await task.promise(this.data);
+    call(...args) {
+        for (const [name, fn] of this.taps) {
+            try {
+                console.log(`${name} 実行中`);
+                fn(...args)
+            } catch (e) {
+                console.error(`エラー発生 ${e.message}`);
+                const pluginError = new PluginError(`プラグインでエラー発生 ${name}: ${e.message}`); 
+                pluginError.originalError = e;
+                throw pluginError;
             }
-            return this.data;
-        } catch (e) {
-            console.error(`エラー発生 ${e.message}`);
-            return;
         }
     }
 }
 
-class AsyncWaterfallHook extends HookBase {
-    async promise() {
-        let data = this.data;
-        try {
-            for (const task of this.tasks) {
-                console.log(`${task.name} 実行中`);
-                data = await task.promise(data);
+class AsyncHookBase extends HookBase {
+    tapPromise(name, promise) {
+        this.tap(name, promise);
+    }
+
+    async promise() {}
+}
+
+class AsyncSeriesHook extends AsyncHookBase {
+    async promise(...args) {
+        for (const [name, fn] of this.taps) {
+            try {
+                console.log(`${name} 実行中`);
+                await fn(...args);
+            } catch (e) {
+                console.error(`エラー発生 ${e.message}`);
+                const pluginError = new PluginError(`プラグインでエラー発生 ${name}: ${e.message}`); 
+                pluginError.originalError = e;
+                throw pluginError;
             }
-            return data;
-        } catch (e) {
-            console.error(`エラー発生 ${e}`);
         }
+    }
+}
+
+class AsyncWaterfallHook extends AsyncHookBase {
+    async promise(...args) {
+        let data = args[0];
+        const rest = args.slice(1);
+        for (const [name, fn] of this.taps) {
+            try {
+                console.log(`${name} 実行中`);
+                data = await fn(...[data, ...rest]);
+            } catch (e) {
+                console.error(`エラー発生 ${e.message}`);
+                const pluginError = new PluginError(`プラグインでエラー発生 ${name}: ${e.message}`); 
+                pluginError.originalError = e;
+                throw pluginError;
+            }
+        }
+        return data;
     }
 }
 
@@ -63,32 +95,43 @@ if (require.main === module) {
 
 
     console.log('SyncHook実行');
-    const syncHook = new SyncHook(["hello"]);
-    syncHook.tapPromise({name: 'add accent', promise: data => data + "!"});
-    syncHook.tapPromise({name: 'upper', promise: data => data.toUpperCase()});
+    const syncHook = new SyncHook(["data"]);
+    syncHook.tap('add accent', data => console.log(data + "!"));
+    syncHook.tap('upper', data => console.log(data.toUpperCase()));
 
-    console.log(syncHook.promise());
+    console.log(syncHook.call('hello'));
+
     (async () => {
         console.log('AsyncSeriesHook実行');
-        const asyncHook = new AsyncSeriesHook(["hello"]);
+        const asyncHook = new AsyncSeriesHook("data");
 
-        asyncHook.tapPromise({name: 'add accent', promise: async (data) => {
-            return createPromise(data + '!', 100, 0.3);
-        }});
-        asyncHook.tapPromise({name: 'upper', promise: async (data) => {
-            return createPromise(data.toUpperCase(), 100, 0.3)
-        }});
-        console.log(await asyncHook.promise());
+        asyncHook.tapPromise('add accent', async (data) => {
+            console.log(await createPromise(data + '!', 100, 0.3));
+        });
+        asyncHook.tapPromise('upper', async (data) => {
+            console.log(await createPromise(data.toUpperCase(), 100, 0.3));
+        });
+        try {
+            await asyncHook.promise("hello");
+        } catch (e) {
+            console.log(`エラー発生 ${e.message}`);
+        }
 
         console.log('AsyncWaterfallHook実行');
-        const asyncWHook = new AsyncWaterfallHook(["hello"]);
-        asyncWHook.tapPromise({name: 'add accent', promise: async (data) => {
+        const asyncWHook = new AsyncWaterfallHook(["data"]);
+        asyncWHook.tapPromise('add accent', async (data) => {
             return createPromise(data + '!', 100, 0.3);
-        }});
-        asyncWHook.tapPromise({name: 'upper', promise: async (data) => {
+        });
+        asyncWHook.tapPromise('upper',  async (data) => {
             return createPromise(data.toUpperCase(), 100, 0.3)
-        }});
-        console.log(await asyncWHook.promise());
+        });
+        try {
+            const result = await asyncWHook.promise("hello");
+            console.log(result);
+        } catch (e) {
+            console.error(`エラー発生 ${e.message}`);
+        }
+
     })();
 }
 

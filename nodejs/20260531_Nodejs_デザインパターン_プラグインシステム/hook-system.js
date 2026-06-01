@@ -14,19 +14,19 @@ class PluginError extends Error {}
 class HookBase {
     constructor(data) {
         this.data = data;
-        this.taps = new Map();
+        this.taps = [];
         this.errors = [];
     }
 
     tap(name, fn) {
-       this.taps.set(name, fn);
+       this.taps.push({ name, fn });
     }
 
 }
 
 class SyncHook extends HookBase {
     call(...args) {
-        for (const [name, fn] of this.taps) {
+        for (const { name, fn } of this.taps) {
             try {
                 console.log(`${name} 実行中`);
                 fn(...args)
@@ -46,38 +46,35 @@ class AsyncHookBase extends HookBase {
     }
 
     async promise() {}
+
+    async _runTap(name, fn, ...args) {
+        try {
+            console.log(`${name} 実行中`);
+            return await fn(...args);
+        } catch (e) {
+            console.error(`エラー発生 ${e.message}`);
+            const pluginError = new PluginError(`プラグインでエラー発生 ${name}: ${e.message}`);
+            pluginError.originalError = e;
+            throw pluginError;
+        }
+    }
 }
 
 class AsyncSeriesHook extends AsyncHookBase {
     async promise(...args) {
-        for (const [name, fn] of this.taps) {
-            try {
-                console.log(`${name} 実行中`);
-                await fn(...args);
-            } catch (e) {
-                console.error(`エラー発生 ${e.message}`);
-                const pluginError = new PluginError(`プラグインでエラー発生 ${name}: ${e.message}`); 
-                pluginError.originalError = e;
-                throw pluginError;
-            }
+        for (const { name, fn } of this.taps) {
+            await this._runTap(name, fn, ...args);
         }
     }
+
 }
 
 class AsyncWaterfallHook extends AsyncHookBase {
     async promise(...args) {
         let data = args[0];
         const rest = args.slice(1);
-        for (const [name, fn] of this.taps) {
-            try {
-                console.log(`${name} 実行中`);
-                data = await fn(...[data, ...rest]);
-            } catch (e) {
-                console.error(`エラー発生 ${e.message}`);
-                const pluginError = new PluginError(`プラグインでエラー発生 ${name}: ${e.message}`); 
-                pluginError.originalError = e;
-                throw pluginError;
-            }
+        for (const { name, fn } of this.taps) {
+            data = await this._runTap(name, fn, ...[data, ...rest]);
         }
         return data;
     }
@@ -99,7 +96,7 @@ if (require.main === module) {
     syncHook.tap('add accent', data => console.log(data + "!"));
     syncHook.tap('upper', data => console.log(data.toUpperCase()));
 
-    console.log(syncHook.call('hello'));
+    syncHook.call('hello');
 
     (async () => {
         console.log('AsyncSeriesHook実行');

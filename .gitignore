@@ -3,4 +3,5 @@ MEMORY.md
 notes/
 tmp/
 *.swp
-
+node_modules/
+dist/

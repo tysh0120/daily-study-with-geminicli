@@ -4,24 +4,22 @@ export class QueueEmptyError extends Error {}
 export class DuplicateNameError extends Error {}
 export class PersistentQueue<T> {
     static allQueueNames: Set<string> = new Set();
-    _queue: T[];
-    _tmpFile: string;
-    _queueFile: string;
-    _queueDir: string;
-    constructor(private name: string, queueDir: string='./queues') {
+    private _queue: T[];
+    private _tmpFile: string;
+    private _queueFile: string;
+    constructor(private name: string, private _queueDir: string='./queues') {
         if (PersistentQueue.allQueueNames.has(name)) {
             throw new DuplicateNameError(`${name} は既に使用されてます`);
         }
         PersistentQueue.allQueueNames.add(name);
         this._queue = [];
-        this._tmpFile = `${queueDir}/${this.name}.tmp`;
-        this._queueDir = queueDir;
+        this._tmpFile = `${this,_queueDir}/${this.name}.tmp`;
         this._queueFile = `${this._queueDir}/${this.name}.queue`;
     }
 
-    create(name, queueDir='./queues') {
+    static async create(name: string, queueDir='./queues') {
         const persistentQueue = new PersistentQueue(name, queueDir);
-        persistentQueue.recovery();
+        await persistentQueue.recovery();
         return persistentQueue;
     }
 
@@ -37,15 +35,16 @@ export class PersistentQueue<T> {
     }
 
     async dequeue(): Promise<T> {
+        console.log(this._queue);
         if (this._queue.length == 0) {
             throw new QueueEmptyError('キューが空です');
         }
         await this.writeQueueFile(this._queue.slice(1));
         // ファイル書き込みに成功したらメモリの状態も合わせる
-        return this._queue.shift();
+        return this._queue.shift()!;
     }
 
-    peek(): any {
+    peek(): T | undefined {
         return this._queue[0];
     }
 
@@ -54,13 +53,7 @@ export class PersistentQueue<T> {
     }
     
     async recovery(): Promise<void> {
-        try {
-            await fs.access(this._queueDir);
-        } catch (e: unknown) {
-            if (e instanceof Error && (e as any).code == 'ENOENT') {
-                await fs.mkdir(this._queueDir);
-            }
-        }
+        await fs.mkdir(this._queueDir, {recursive: true});
         try {
             await fs.access(this._queueFile);
             const queueAsJson = await fs.readFile(this._queueFile, 'utf-8') as string;

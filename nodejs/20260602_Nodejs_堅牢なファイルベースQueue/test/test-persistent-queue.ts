@@ -20,12 +20,14 @@ assert.equal(1, persistentQueue.size(), 'dequeueは要素を一つ減らす');
 assert.equal(2, await persistentQueue.dequeue(), 'dequeueは先頭要素を返却');
 assert.equal(0, persistentQueue.size(), 'dequeueは要素数を一つ減らす');
 
-/*
+// queueが空でdequeueしたとき
 await assert.rejects(
-    persistentQueue.dequeue, {
-    name: 'QueueEmptyError',
-});
-*/
+    () => persistentQueue.dequeue(),
+    QueueEmptyError,
+    "Queueが空の時dequeueするとQueueEmptyErrorが発生"
+);
+// queueが空でpeekしたとき
+await assert.equal(undefined, persistentQueue.peek());
 // recovery
 await fs.writeFile('queues/test-recovery.queue', JSON.stringify([1,2,3]));
 const recoveredQueue = new PersistentQueue('test-recovery')

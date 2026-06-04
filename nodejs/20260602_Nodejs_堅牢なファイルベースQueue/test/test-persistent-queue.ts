@@ -2,7 +2,7 @@ import assert from 'assert';
 import * as fs from 'fs/promises';
 import { PersistentQueue, QueueEmptyError, DuplicateNameError } from '../src/persistent-queue.js';
 
-const persistentQueue = new PersistentQueue('test-queue');
+const persistentQueue = await PersistentQueue.create('test-queue');
 
 await persistentQueue.enqueue(1);
 assert.equal(1, persistentQueue.size());
@@ -27,10 +27,10 @@ await assert.rejects(
     "Queueが空の時dequeueするとQueueEmptyErrorが発生"
 );
 // queueが空でpeekしたとき
-await assert.equal(undefined, persistentQueue.peek());
+assert.equal(undefined, persistentQueue.peek());
 // recovery
 await fs.writeFile('queues/test-recovery.queue', JSON.stringify([1,2,3]));
-const recoveredQueue = new PersistentQueue('test-recovery')
+const recoveredQueue = await PersistentQueue.create('test-recovery')
 await recoveredQueue.recovery();
 
 assert.equal(3, recoveredQueue.size());
@@ -40,7 +40,7 @@ assert.equal(3, await recoveredQueue.dequeue());
 assert.equal(0, recoveredQueue.size());
 
 // queueフォルダがなかった場合
-const noDirQueue = new PersistentQueue('no-queue', './testqueue');
+const noDirQueue = await PersistentQueue.create('no-queue', './testqueue');
 await noDirQueue.recovery();
 try {
     await fs.access('./testqueue');
@@ -48,7 +48,7 @@ try {
 } finally {}
 
 // 名称重複時エラーを返す
-const duplQueue = new PersistentQueue('dupl-name');
-assert.throws(() => new PersistentQueue('dupl-name'),
+const duplQueue = await PersistentQueue.create('dupl-name');
+assert.rejects(async () => await PersistentQueue.create('dupl-name'),
               DuplicateNameError);
 

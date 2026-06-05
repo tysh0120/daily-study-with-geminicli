@@ -6,17 +6,19 @@ export class DuplicateNameError extends Error {}
 export class PersistentQueue<T> {
     static allQueueNames: Set<string> = new Set();
     private _queue: T[];
-    private _tmpFile: string;
+    private _manifestFile: string;
     private _queueFile: string;
-    
+    private _spos: number; 
+
     private constructor(private name: string, private _queueDir: string='./queues') {
         if (PersistentQueue.allQueueNames.has(name)) {
             throw new DuplicateNameError(`${name} は既に使用されてます`);
         }
         PersistentQueue.allQueueNames.add(name);
         this._queue = [];
-        this._tmpFile = `${this._queueDir}/${this.name}.tmp`;
         this._queueFile = `${this._queueDir}/${this.name}.queue`;
+        this._manifestFile = `${this._queueDir}/${this.name}.manifest`
+        this._spos = 0;
     }
 
     static async create(name: string, queueDir='./queues') {
@@ -25,13 +27,9 @@ export class PersistentQueue<T> {
         return persistentQueue;
     }
 
-    async writeQueueFile(data: T[]): Promise<void> {
-        await fs.writeFile(this._tmpFile, JSON.stringify(data));
-        await fs.rename(this._tmpFile, this._queueFile);
-    }
-
     async enqueue(value: T): Promise<void> {
-        await this.writeQueueFile([...this._queue, value]);
+        const jsonValue = JSON.stringify(value) + '\n';
+        await fs.writeFile(this._queueFile, jsonValue, { flag: 'a' });
         // ファイル書き込みに成功したらメモリの状態も合わせる
         this._queue.push(value);
     }
@@ -40,8 +38,11 @@ export class PersistentQueue<T> {
         if (this._queue.length == 0) {
             throw new QueueEmptyError('キューが空です');
         }
-        await this.writeQueueFile(this._queue.slice(1));
+        // manifest を削除する先頭要素のJSON文字列長 + １（改行分）増やす
+        let spos = this._spos + JSON.stringify(this._queue[0]).length + 1;
+        await fs.writeFile(this._manifestFile, spos.toString());
         // ファイル書き込みに成功したらメモリの状態も合わせる
+        this._spos = spos;
         return this._queue.shift()!;
     }
 
@@ -54,10 +55,18 @@ export class PersistentQueue<T> {
     }
     
     async recovery(): Promise<void> {
+        // キュー管理用ディレクトリ作成(あればそのまま利用）
         await fs.mkdir(this._queueDir, {recursive: true});
+    
+        // _queue, _spos　はファイルから読み直すため初期化
+        this._queue = [];
+        this._spos = 0;
         try {
-            const queueAsJson = await fs.readFile(this._queueFile, 'utf-8')
-            this._queue = JSON.parse(queueAsJson);
+            const jsonValues = await fs.readFile(this._queueFile, 'utf-8');
+            this._spos = parseInt(await fs.readFile(this._manifestFile, 'utf-8'));
+            for (const jsonVal of jsonValues.slice(this._spos).split("\n")) {
+                this._queue.push(JSON.parse(jsonVal));
+            }
         } catch (e: unknown) {
             if (e instanceof Object && 'code' in e && e.code == 'ENOENT') {
                 // キューファイルがない場合、何もしない

@@ -79,4 +79,21 @@
 - [X] recovery中のTOCTOUの排除
 - [X] テスト中のインスタンス生成をcreateで行う
 
+## 2026/06/05 本日の取り組み
+キューファイルの効率化
+登録ごとにデータの洗い替え　→ 追加した分のみ書き込み
+
+### 使用するファイル
+{キュー名称}.manifest
+ キューの先頭のバイト位置を記録
+{キュー名称}.queue
+ キューのデータを記録。中身は改行区切りのJSON(NDJSONというらしい)
+
+### enqueue/dequeue/recovery の挙動
+- enqueue:
+  引数で受け取った値をJSON.stringifyしたものを末尾に追加したうえで行末に改行を追加
+- dequeue:
+  manifestから取得した先頭位置から改行までのバイト数をmanifestに足しこむ(論理削除）
+- recovery
+  manifestから読み取った先頭位置からqueueファイルの末尾までの各行をJSON.parseしてメモリ上の配列にpush
 

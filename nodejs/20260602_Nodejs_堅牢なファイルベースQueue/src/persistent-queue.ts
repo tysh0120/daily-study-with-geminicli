@@ -33,13 +33,13 @@ export class PersistentQueue<T> {
         // ファイル書き込みに成功したらメモリの状態も合わせる
         this._queue.push(value);
     }
-
+   
     async dequeue(): Promise<T> {
         if (this._queue.length == 0) {
             throw new QueueEmptyError('キューが空です');
         }
-        // manifest を削除する先頭要素のJSON文字列長 + １（改行分）増やす
-        let spos = this._spos + JSON.stringify(this._queue[0]).length + 1;
+
+        let spos = this._spos + this.lengthInQueueFile(this.peek()!);
         await fs.writeFile(this._manifestFile, spos.toString());
         // ファイル書き込みに成功したらメモリの状態も合わせる
         this._spos = spos;
@@ -77,5 +77,11 @@ export class PersistentQueue<T> {
             }
         }
     }
+    
+    private lengthInQueueFile(obj: T) {
+        // JSON文字列長 + １（改行分）増やす
+        return JSON.stringify(obj).length + 1;
+    }
+
 }
 

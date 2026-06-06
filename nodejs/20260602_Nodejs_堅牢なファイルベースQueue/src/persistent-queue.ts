@@ -65,6 +65,10 @@ export class PersistentQueue<T> {
             const jsonValues = await fs.readFile(this._queueFile, 'utf-8');
             this._spos = parseInt(await fs.readFile(this._manifestFile, 'utf-8'));
             for (const jsonVal of jsonValues.slice(this._spos).split("\n")) {
+                // 末尾に空要素がくる
+                if (jsonVal == '') {
+                    continue;
+                }
                 this._queue.push(JSON.parse(jsonVal));
             }
         } catch (e: unknown) {

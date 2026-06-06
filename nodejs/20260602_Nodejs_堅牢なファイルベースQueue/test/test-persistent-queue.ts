@@ -37,7 +37,7 @@ await assert.rejects(
 // queueが空でpeekしたとき
 assert.equal(undefined, persistentQueue.peek());
 // recovery
-await fs.writeFile('queues/test-recovery.queue', "1\n2\n3");
+await fs.writeFile('queues/test-recovery.queue', "1\n2\n3\n");
 await fs.writeFile('queues/test-recovery.manifest', '0');
 const recoveredQueue = await PersistentQueue.create('test-recovery')
 
@@ -58,4 +58,5 @@ try {
 const duplQueue = await PersistentQueue.create('dupl-name');
 assert.rejects(async () => await PersistentQueue.create('dupl-name'),
               DuplicateNameError);
+
 

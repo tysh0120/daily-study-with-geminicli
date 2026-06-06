@@ -79,23 +79,6 @@
 - [X] recovery中のTOCTOUの排除
 - [X] テスト中のインスタンス生成をcreateで行う
 
-## 2026-06-05 フィードバック (Append-only Log 実装)
-修正お疲れ様です！「Append-only Log + Byte Offset」の概念を、非常に短いスパンでコードに落とし込めましたね。
-特に、`fs.writeFile` の `flag: 'a'` を使った追記や、`spos`（start position）による論理削除の実装は、まさに永続化キューの進化の核心を突いています。
-
-### 1. 正確性 (Accuracy)
-- **NDJSONパース時の末尾問題**: `recovery()` で `split("\n")` を使用していますが、ファイル末尾の改行により最後の要素が空文字になり、`JSON.parse` で失敗する可能性があります。
-- **Manifest更新の原子性**: `dequeue` 時に直接 `manifestFile` を上書きしていますが、クラッシュ時にファイルが破損するリスクがあります。以前の `rename` 方式（Atomic Write）の適用を検討してください。
-
-### 2. 可読性 (Readability)
-- **バイト数計算の共通化**: メッセージ長 + 1（改行）の計算を `enqueue` と `dequeue` で共通化すると、将来のフォーマット変更に強くなります。
-
-### 3. 効率性 (Efficiency)
-- **巨大ファイルへの対応**: `recovery()` でファイル全体を `readFile` しています。ログが巨大化した際にメモリ不足になるため、`spos` を利用して必要な範囲だけをストリーム等で読み込むのが理想です。
-
-## 次のステップへのヒント
-- `recovery` における「全読み込み」を、`FileHandle.read` や `createReadStream` の `start` オプションを利用した「必要な範囲のみの読み込み」に改善してみましょう。
-- 溜まり続けるログをいつか掃除する「ログの圧縮（Compaction）」についても考えてみてください。
 
 ## 2026/06/05 本日の取り組み
 キューファイルの効率化
@@ -114,3 +97,40 @@
   manifestから取得した先頭位置から改行までのバイト数をmanifestに足しこむ(論理削除）
 - recovery
   manifestから読み取った先頭位置からqueueファイルの末尾までの各行をJSON.parseしてメモリ上の配列にpush
+
+
+## 2026-06-05 フィードバック (Append-only Log 実装)
+修正お疲れ様です！「Append-only Log + Byte Offset」の概念を、非常に短いスパンでコードに落とし込めましたね。
+特に、`fs.writeFile` の `flag: 'a'` を使った追記や、`spos`（start position）による論理削除の実装は、まさに永続化キューの進化の核心を突いています。
+
+### 1. 正確性 (Accuracy)
+- **NDJSONパース時の末尾問題**: `recovery()` で `split("\n")` を使用していますが、ファイル末尾の改行により最後の要素が空文字になり、`JSON.parse` で失敗する可能性があります。
+- **Manifest更新の原子性**: `dequeue` 時に直接 `manifestFile` を上書きしていますが、クラッシュ時にファイルが破損するリスクがあります。以前の `rename` 方式（Atomic Write）の適用を検討してください。
+
+### 2. 可読性 (Readability)
+- **バイト数計算の共通化**: メッセージ長 + 1（改行）の計算を `enqueue` と `dequeue` で共通化すると、将来のフォーマット変更に強くなります。
+
+### 3. 効率性 (Efficiency)
+- **巨大ファイルへの対応**: `recovery()` でファイル全体を `readFile` しています。ログが巨大化した際にメモリ不足になるため、`spos` を利用して必要な範囲だけをストリーム等で読み込むのが理想です。
+
+## 次のステップへのヒント
+- `recovery` における「全読み込み」を、`FileHandle.read` や `createReadStream` の `start` オプションを利用した「必要な範囲のみの読み込み」に改善してみましょう。
+- 溜まり続けるログをいつか掃除する「ログの圧縮（Compaction）」についても考えてみてください。
+
+
+## 2026-06-06 本日の取り組み 
+### 1. 処理の共通化 (メッセージ長の計算)
+### 2. 末尾に空要素が入ってしまう問題解消
+### 3. ファイル更新時のatomic性確保
+**manifestファイルのフォーマット変更**
+ 先頭位置のみだったのを先頭と末尾を持つようにする。
+atomic性
+**manifest:** rename方式で更新
+**queue:** サイズが大きくなるため、書き込み後fsyncを呼びフラッシュ
+更新順は manifest -> queue  とする
+### 4. 巨大ファイルへの対処(stream)
+fs.createReadStreamを仕様
+### 5. recoveryの際のreadFileの読み込み範囲を絞る
+fs.createStream の start, end オプションを指定
+### 6. ログ圧縮の検討
+

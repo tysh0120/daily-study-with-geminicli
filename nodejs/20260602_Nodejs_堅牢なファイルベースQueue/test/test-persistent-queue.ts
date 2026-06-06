@@ -9,24 +9,26 @@ try {
 catch {
 }
 const persistentQueue = await PersistentQueue.create('test-queue');
-
+persistentQueue.clear();
 await persistentQueue.enqueue(1);
 assert.equal(1, persistentQueue.size());
 // queueファイル
 assert.equal('1\n', await fs.readFile('queues/test-queue.queue', 'utf-8'), 'queueファイルの中身');
+assert.equal("[0,2]", await fs.readFile('queues/test-queue.manifest', 'utf-8'), 'manifestファイル');
 
 await persistentQueue.enqueue(2);
 assert.equal(2, persistentQueue.size());
 assert.equal('1\n2\n', await fs.readFile('queues/test-queue.queue', 'utf-8'), 'queueファイルの中身');
+assert.equal("[0,4]", await fs.readFile('queues/test-queue.manifest', 'utf-8'), 'manifestファイル');
 assert.equal(1, persistentQueue.peek(), 'peekは先頭要素を返却');
 
 assert.equal(1, await persistentQueue.dequeue(), 'dequeueは先頭要素を返却');
 assert.equal(1, persistentQueue.size(), 'dequeueは要素を一つ減らす');
-assert.equal(2, await fs.readFile('queues/test-queue.manifest', 'utf-8'), 'manifestファイル');
+assert.equal("[2,4]", await fs.readFile('queues/test-queue.manifest', 'utf-8'), 'manifestファイル');
 
 assert.equal(2, await persistentQueue.dequeue(), 'dequeueは先頭要素を返却');
 assert.equal(0, persistentQueue.size(), 'dequeueは要素数を一つ減らす');
-assert.equal(4, await fs.readFile('queues/test-queue.manifest', 'utf-8'), 'manifestファイル');
+assert.equal("[4,4]", await fs.readFile('queues/test-queue.manifest', 'utf-8'), 'manifestファイル');
 
 // queueが空でdequeueしたとき
 await assert.rejects(
@@ -38,9 +40,8 @@ await assert.rejects(
 assert.equal(undefined, persistentQueue.peek());
 // recovery
 await fs.writeFile('queues/test-recovery.queue', "1\n2\n3\n");
-await fs.writeFile('queues/test-recovery.manifest', '0');
+await fs.writeFile('queues/test-recovery.manifest', '[0,6]');
 const recoveredQueue = await PersistentQueue.create('test-recovery')
-
 assert.equal(3, recoveredQueue.size());
 assert.equal(1, await recoveredQueue.dequeue());
 assert.equal(2, await recoveredQueue.dequeue());

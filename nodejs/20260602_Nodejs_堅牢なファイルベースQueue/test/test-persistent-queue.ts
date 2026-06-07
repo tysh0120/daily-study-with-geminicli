@@ -75,3 +75,10 @@ assert.equal(truncateQueue.size(), 2);
 assert.equal(await fs.readFile('queues/test-truncate.queue', {encoding: 'utf-8'}), '1\n2\n');
 assert.equal(await fs.readFile('queues/test-truncate.manifest', {encoding: 'utf-8'}), '[0,4]');
 
+// オフバイワン
+await fs.writeFile('queues/test-off-by-one.queue', '1\n2\n3\n');
+await fs.writeFile('queues/test-off-by-one.manifest', '[2,4]');
+const oboQueue = await PersistentQueue.create('test-off-by-one');
+assert.equal(1, oboQueue.size());
+assert.equal(2, oboQueue.peek());
+

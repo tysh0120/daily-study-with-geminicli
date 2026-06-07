@@ -1,4 +1,4 @@
-import assert from 'assert';
+import assert from 'node:assert/strict';
 import * as fs from 'fs/promises';
 import { PersistentQueue, QueueEmptyError, DuplicateNameError } from '../src/persistent-queue.js';
 
@@ -11,30 +11,30 @@ catch {
 const persistentQueue = await PersistentQueue.create('test-queue');
 persistentQueue.clear();
 await persistentQueue.enqueue(1);
-assert.equal(1, persistentQueue.size());
+assert.equal(persistentQueue.size(), 1);
 // queueファイル
-assert.equal('1\n', await fs.readFile('queues/test-queue.queue', 'utf-8'), 'queueファイルの中身');
-assert.equal("[0,2]", await fs.readFile('queues/test-queue.manifest', 'utf-8'), 'manifestファイル');
+assert.equal(await fs.readFile('queues/test-queue.queue', 'utf-8'), '1\n', 'queueファイルの中身');
+assert.equal(await fs.readFile('queues/test-queue.manifest', 'utf-8'), "[0,2]", 'manifestファイル');
 
 await persistentQueue.enqueue(2);
-assert.equal(2, persistentQueue.size());
-assert.equal('1\n2\n', await fs.readFile('queues/test-queue.queue', 'utf-8'), 'queueファイルの中身');
-assert.equal("[0,4]", await fs.readFile('queues/test-queue.manifest', 'utf-8'), 'manifestファイル');
-assert.equal(1, persistentQueue.peek(), 'peekは先頭要素を返却');
+assert.equal(persistentQueue.size(), 2);
+assert.equal(await fs.readFile('queues/test-queue.queue', 'utf-8'), '1\n2\n', 'queueファイルの中身');
+assert.equal(await fs.readFile('queues/test-queue.manifest', 'utf-8'), "[0,4]", 'manifestファイル');
+assert.equal(persistentQueue.peek(), 1, 'peekは先頭要素を返却');
 
-assert.equal(1, await persistentQueue.dequeue(), 'dequeueは先頭要素を返却');
-assert.equal(1, persistentQueue.size(), 'dequeueは要素を一つ減らす');
-assert.equal("[2,4]", await fs.readFile('queues/test-queue.manifest', 'utf-8'), 'manifestファイル');
+assert.equal(await persistentQueue.dequeue(), 1, 'dequeueは先頭要素を返却');
+assert.equal(persistentQueue.size(), 1, 'dequeueは要素を一つ減らす');
+assert.equal(await fs.readFile('queues/test-queue.manifest', 'utf-8'), "[2,4]", 'manifestファイル');
 
-assert.equal(2, await persistentQueue.dequeue(), 'dequeueは先頭要素を返却');
-assert.equal(0, persistentQueue.size(), 'dequeueは要素数を一つ減らす');
-assert.equal("[4,4]", await fs.readFile('queues/test-queue.manifest', 'utf-8'), 'manifestファイル');
+assert.equal(await persistentQueue.dequeue(), 2, 'dequeueは先頭要素を返却');
+assert.equal(persistentQueue.size(), 0, 'dequeueは要素数を一つ減らす');
+assert.equal(await fs.readFile('queues/test-queue.manifest', 'utf-8'), "[4,4]", 'manifestファイル');
 
 // purge
-assert.equal('1\n2\n', await fs.readFile('queues/test-queue.queue'));
+assert.equal(await fs.readFile('queues/test-queue.queue', 'utf-8'), '1\n2\n');
 await persistentQueue.purge();
-assert.equal('', await fs.readFile('queues/test-queue.queue', 'utf-8'));
-assert.equal('[0,0]', await fs.readFile('queues/test-queue.manifest', 'utf-8'));
+assert.equal(await fs.readFile('queues/test-queue.queue', 'utf-8'), '');
+assert.equal(await fs.readFile('queues/test-queue.manifest', 'utf-8'), '[0,0]');
 // queueが空でdequeueしたとき
 await assert.rejects(
     () => persistentQueue.dequeue(),
@@ -42,16 +42,16 @@ await assert.rejects(
     "Queueが空の時dequeueするとQueueEmptyErrorが発生"
 );
 // queueが空でpeekしたとき
-assert.equal(undefined, persistentQueue.peek());
+assert.equal(persistentQueue.peek(), undefined);
 // recovery
 await fs.writeFile('queues/test-recovery.queue', "1\n2\n3\n");
 await fs.writeFile('queues/test-recovery.manifest', '[0,6]');
 const recoveredQueue = await PersistentQueue.create('test-recovery')
-assert.equal(3, recoveredQueue.size());
-assert.equal(1, await recoveredQueue.dequeue());
-assert.equal(2, await recoveredQueue.dequeue());
-assert.equal(3, await recoveredQueue.dequeue());
-assert.equal(0, recoveredQueue.size());
+assert.equal(recoveredQueue.size(), 3);
+assert.equal(await recoveredQueue.dequeue(), 1);
+assert.equal(await recoveredQueue.dequeue(), 2);
+assert.equal(await recoveredQueue.dequeue(), 3);
+assert.equal(recoveredQueue.size(), 0);
 
 // queueフォルダがなかった場合
 const noDirQueue = await PersistentQueue.create('no-queue', './testqueue');
@@ -69,10 +69,9 @@ assert.rejects(async () => await PersistentQueue.create('dupl-name'),
 await fs.writeFile('queues/test-truncate.queue', '1\n2\n3\n');
 await fs.writeFile('queues/test-truncate.manifest', '[0,2]');
 const truncateQueue = await PersistentQueue.create('test-truncate');
-assert.equal(1, truncateQueue.size());
+assert.equal(truncateQueue.size(), 1);
 await truncateQueue.enqueue(2);
-assert.equal(2, truncateQueue.size());
-assert.equal('1\n2\n', await fs.readFile('queues/test-truncate.queue', {encoding: 'utf-8'}));
-assert.equal('[0,4]', await fs.readFile('queues/test-truncate.manifest', {encoding: 'utf-8'}));
-
+assert.equal(truncateQueue.size(), 2);
+assert.equal(await fs.readFile('queues/test-truncate.queue', {encoding: 'utf-8'}), '1\n2\n');
+assert.equal(await fs.readFile('queues/test-truncate.manifest', {encoding: 'utf-8'}), '[0,4]');
 

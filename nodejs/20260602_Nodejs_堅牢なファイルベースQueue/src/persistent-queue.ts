@@ -4,20 +4,29 @@ import { finished } from 'node:stream/promises';
 export class QueueEmptyError extends Error {}
 export class DuplicateNameError extends Error {}
 
+type PersistentQueueIOOptions = {
+    readHighWaterMark?: number,
+    writeHighWaterMark?: number
+};
+
 export class PersistentQueue<T> {
+
     static allQueueNames: Set<string> = new Set();
     private _queue: T[];
     private _manifestFile: string;
     private _queueFile: string;
     private _spos: number; 
     private _epos: number;
-
+    
     /**
      * @private
      * @param {string} name
      * @param {string _queueDir
+     * @param {PersistentQueueIOOptions} ioOptions 読み書き時のhigiWaterMarkを設定
      */
-    private constructor(private name: string, private _queueDir: string='./queues') {
+    private constructor(private name: string,
+                        private _queueDir: string='./queues',
+                        private ioOptions?: PersistentQueueIOOptions) {
         if (PersistentQueue.allQueueNames.has(name)) {
             throw new DuplicateNameError(`${name} は既に使用されてます`);
         }
@@ -31,18 +40,20 @@ export class PersistentQueue<T> {
     /**
      * ファクトリメソッド
      * @param {string} name
-     * @param {string} queueDir: キューを作成するディレクトリを指定
-     * @returns PersistentQueue<T>
+     * @param {string} queueDir キューを作成するディレクトリを指定
+     * @param {PersistentQueueIOOption} ioOptions 読み書き時のhigiWaterMarkを設定
      */
-    static async create(name: string, queueDir='./queues') {
-        const persistentQueue = new PersistentQueue(name, queueDir);
+    static async create<T>(name: string,
+                           queueDir='./queues',
+                           ioOptions?: PersistentQueueIOOptions) {
+        const persistentQueue = new PersistentQueue<T>(name, queueDir, ioOptions);
         await persistentQueue.recovery();
         return persistentQueue;
     }
 
     /**
      * enqueue
-     * @param {T} val
+     * @param {T} value
      */
     async enqueue(value: T): Promise<void> {
         let handle;
@@ -137,10 +148,12 @@ export class PersistentQueue<T> {
             await using tmpQueueHandle = await fs.open(tmpQueueFileName, 'w');
             await using queueStream = queueHandle.createReadStream({
                 start: this._spos,
-                end: this._epos
+                end: this._epos,
+                highWaterMark: this.ioOptions?.readHighWaterMark
             });
-            await using tmpQueueStream = tmpQueueHandle.createWriteStream();
-            
+            await using tmpQueueStream = tmpQueueHandle.createWriteStream({
+                highWaterMark: this.ioOptions?.writeHighWaterMark,
+            });
             queueStream.pipe(tmpQueueStream);
             
             await finished(tmpQueueStream);
@@ -196,19 +209,22 @@ export class PersistentQueue<T> {
             handle.truncate(this._epos);
             stream = handle.createReadStream({
                 start: this._spos,
-                end: this._epos
+                end: this._epos,
+                highWaterMark: this.ioOptions?.readHighWaterMark,
             });
-           
             let data = '';
             try {
                 for await (const chunk of stream) {
                     data += chunk;
-                    // 読み込み完了した行はその場でパースして読み込む
                     const lines = data.split("\n");
-                    if (lines.length <= 1) {
-                        return;
+                    // 末尾のJSONが未完成の場合、dataに保持
+                    if (chunk[chunk.length - 1] != "\n") {
+                        data = lines.pop()!;
+                    } else {
+                        data = '';
                     }
-                    for (const line of lines.slice(0, lines.length - 1)) {
+                    // JSONが完成した行はその場でパースして読み込む 
+                    for (const line of lines) {
                         this._queue.push(JSON.parse(line));
                     }
                 }

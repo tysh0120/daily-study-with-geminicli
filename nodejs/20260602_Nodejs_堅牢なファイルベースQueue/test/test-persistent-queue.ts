@@ -8,7 +8,7 @@ try {
 }
 catch {
 }
-const persistentQueue = await PersistentQueue.create('test-queue');
+const persistentQueue = await PersistentQueue.create<number>('test-queue');
 persistentQueue.clear();
 await persistentQueue.enqueue(1);
 assert.equal(persistentQueue.size(), 1);
@@ -54,21 +54,21 @@ assert.equal(await recoveredQueue.dequeue(), 3);
 assert.equal(recoveredQueue.size(), 0);
 
 // queueフォルダがなかった場合
-const noDirQueue = await PersistentQueue.create('no-queue', './testqueue');
+await PersistentQueue.create<number>('no-queue', './testqueue');
 try {
     await fs.access('./testqueue');
     await fs.rmdir('./testqueue');
 } finally {}
 
 // 名称重複時エラーを返す
-const duplQueue = await PersistentQueue.create('dupl-name');
+await PersistentQueue.create<number>('dupl-name');
 assert.rejects(async () => await PersistentQueue.create('dupl-name'),
               DuplicateNameError);
 
 // 後ろの余分なデータを削除
 await fs.writeFile('queues/test-truncate.queue', '1\n2\n3\n');
 await fs.writeFile('queues/test-truncate.manifest', '[0,2]');
-const truncateQueue = await PersistentQueue.create('test-truncate');
+const truncateQueue = await PersistentQueue.create<number>('test-truncate');
 assert.equal(truncateQueue.size(), 1);
 await truncateQueue.enqueue(2);
 assert.equal(truncateQueue.size(), 2);
@@ -78,7 +78,38 @@ assert.equal(await fs.readFile('queues/test-truncate.manifest', {encoding: 'utf-
 // オフバイワン
 await fs.writeFile('queues/test-off-by-one.queue', '1\n2\n3\n');
 await fs.writeFile('queues/test-off-by-one.manifest', '[2,4]');
-const oboQueue = await PersistentQueue.create('test-off-by-one');
-assert.equal(1, oboQueue.size());
-assert.equal(2, oboQueue.peek());
+const oboQueue = await PersistentQueue.create<number>('test-off-by-one');
+assert.equal(oboQueue.size(), 1);
+assert.equal(oboQueue.peek(), 2);
+
+// higiwatermark超えのメッセージ
+await fs.writeFile('queues/test-highwatermark.queue', '"aaa"\n"bbb"\n"ccc"\n');
+await fs.writeFile('queues/test-highwatermark.manifest', '[6,12]');
+const hwQueue = await PersistentQueue.create<string>('test-highwatermark', undefined, 
+                                             {readHighWaterMark: 1, writeHighWaterMark: 1});
+assert.equal(hwQueue.size(), 1);
+assert.equal(hwQueue.peek(), 'bbb');
+for (let i = 0; i < 10; i++) {
+    await hwQueue.enqueue(i.toString());
+}
+assert(await hwQueue.dequeue(), 'bbb');
+for (let i = 0; i < 5; i++) {
+    assert.equal(await hwQueue.dequeue(), i.toString());
+}
+assert.equal(hwQueue.size(), 5);
+await hwQueue.purge();
+
+assert.equal(await fs.readFile('queues/test-highwatermark.manifest', 'utf-8'), '[0,20]');
+assert.equal(hwQueue.size(), 5);
+for (let i = 5; i < 9; i++) {
+    assert.equal(await hwQueue.dequeue(), i.toString());
+}
+await hwQueue.purge();
+assert.equal(await fs.readFile('queues/test-highwatermark.manifest', 'utf-8'), '[0,4]');
+assert.equal(hwQueue.size(), 1);
+
+await hwQueue.dequeue();
+await hwQueue.purge();
+assert.equal(await fs.readFile('queues/test-highwatermark.manifest', 'utf-8'), '[0,0]');
+assert.equal(hwQueue.size(), 0);
 

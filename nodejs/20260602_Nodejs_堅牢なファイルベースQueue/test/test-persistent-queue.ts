@@ -9,7 +9,11 @@ try {
 catch {
 }
 const persistentQueue = await PersistentQueue.create<number>('test-queue');
-persistentQueue.clear();
+await persistentQueue.clear();
+assert.equal(persistentQueue.size(), 0);
+assert.equal(await fs.readFile('queues/test-queue.queue', 'utf-8'), '', 'queueファイルの中身');
+assert.equal(await fs.readFile('queues/test-queue.manifest', 'utf-8'), '[0,0]', 'manifestファイルの中身');
+
 await persistentQueue.enqueue(1);
 assert.equal(persistentQueue.size(), 1);
 // queueファイル
@@ -76,11 +80,11 @@ assert.equal(await fs.readFile('queues/test-truncate.queue', {encoding: 'utf-8'}
 assert.equal(await fs.readFile('queues/test-truncate.manifest', {encoding: 'utf-8'}), '[0,4]');
 
 // オフバイワン
-await fs.writeFile('queues/test-off-by-one.queue', '1\n2\n3\n');
-await fs.writeFile('queues/test-off-by-one.manifest', '[2,4]');
+await fs.writeFile('queues/test-off-by-one.queue', '1\n22\n333\n');
+await fs.writeFile('queues/test-off-by-one.manifest', '[2,5]');
 const oboQueue = await PersistentQueue.create<number>('test-off-by-one');
 assert.equal(oboQueue.size(), 1);
-assert.equal(oboQueue.peek(), 2);
+assert.equal(oboQueue.peek(), 22);
 
 // higiwatermark超えのメッセージ
 await fs.writeFile('queues/test-highwatermark.queue', '"aaa"\n"bbb"\n"ccc"\n');

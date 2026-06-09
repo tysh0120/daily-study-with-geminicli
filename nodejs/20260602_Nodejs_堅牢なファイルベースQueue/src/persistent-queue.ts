@@ -132,9 +132,11 @@ export class PersistentQueue<T> {
     /**
      * キューの内容をクリア
      */
-    clear() {
-        this._queue = [];
+    async clear() {
+        await this.writeManifest(0, 0);
+        await fs.writeFile(this._queueFile, '');
         [this._spos, this._epos] = [0, 0];
+        this._queue = [];
     }
 
     /**
@@ -143,12 +145,16 @@ export class PersistentQueue<T> {
     async purge() {
         const tmpQueueFileName = this._queueFile + '.tmp';
         {
+            if (this._epos == this._spos) {
+                await this.clear();
+                return;
+            }
             // sposからeposまでの内容をいったんtmpファイルに書き出して上書きリネーム
             await using queueHandle = await fs.open(this._queueFile);
             await using tmpQueueHandle = await fs.open(tmpQueueFileName, 'w');
             await using queueStream = queueHandle.createReadStream({
                 start: this._spos,
-                end: this._epos,
+                end: this._epos-1,
                 highWaterMark: this.ioOptions?.readHighWaterMark
             });
             await using tmpQueueStream = tmpQueueHandle.createWriteStream({
@@ -209,7 +215,7 @@ export class PersistentQueue<T> {
             handle.truncate(this._epos);
             stream = handle.createReadStream({
                 start: this._spos,
-                end: this._epos,
+                end: this._epos-1,
                 highWaterMark: this.ioOptions?.readHighWaterMark,
             });
             let data = '';

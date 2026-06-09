@@ -1,5 +1,5 @@
 import * as fs from 'node:fs/promises';
-import { finished } from 'node:stream/promises';
+import { finished, pipeline } from 'node:stream/promises';
 
 export class QueueEmptyError extends Error {}
 export class DuplicateNameError extends Error {}
@@ -161,9 +161,13 @@ export class PersistentQueue<T> {
             await using tmpQueueStream = tmpQueueHandle.createWriteStream({
                 highWaterMark: this.ioOptions?.writeHighWaterMark,
             });
-            queueStream.pipe(tmpQueueStream);
             
-            await finished(tmpQueueStream);
+            try {
+                await pipeline(queueStream, tmpQueueStream);
+            } catch (e) {
+                console.error(`エラー発生 ${e}`);
+                throw e;
+            }
         }
 
         await fs.rename(tmpQueueFileName, this._queueFile);

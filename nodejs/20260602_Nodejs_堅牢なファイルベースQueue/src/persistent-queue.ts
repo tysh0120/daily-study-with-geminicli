@@ -68,7 +68,7 @@ export class PersistentQueue<T> {
             this._epos = epos;
             this._queue.push(value);
         } finally {
-            handle?.close();
+            await handle?.close();
         }
     }
    
@@ -194,7 +194,7 @@ export class PersistentQueue<T> {
             await handle.writeFile(JSON.stringify([spos, epos]));
             await handle.sync();
         } finally {
-            handle?.close();
+            await handle?.close();
         }
         await fs.rename(this._manifestFile + '.tmp', this._manifestFile);
     }
@@ -240,7 +240,7 @@ export class PersistentQueue<T> {
             }
         } finally {
             stream?.close();
-            handle?.close();
+            await handle?.close();
         }
     }
 }

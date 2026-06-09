@@ -116,6 +116,7 @@ export class PersistentQueue<T> {
         try {
             [this._spos, this._epos] = await this.readManifest();
             await this.loadFromQueueFile();
+            await this.purge();
         } catch (e: unknown) {
             if (e instanceof Object && 'code' in e && e.code == 'ENOENT') {
                 this._queue = [];
@@ -211,8 +212,7 @@ export class PersistentQueue<T> {
         let handle;
         let stream;
         try {
-            handle = await fs.open(this._queueFile, 'r+');
-            handle.truncate(this._epos);
+            handle = await fs.open(this._queueFile, 'r');
             stream = handle.createReadStream({
                 start: this._spos,
                 end: this._epos-1,

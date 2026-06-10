@@ -62,7 +62,7 @@ export class PersistentQueue<T> {
             const line = this.toQueueFileEntry(value);
             await handle.writeFile(line);
             await handle.sync();
-            let epos= this._epos + line.length;
+            let epos= this._epos + Buffer.byteLength(line);
             await this.writeManifest(this._spos, epos);
             // ファイル書き込みに成功したらメモリの状態も合わせる
             this._epos = epos;
@@ -82,7 +82,7 @@ export class PersistentQueue<T> {
         }
 
         const firstElement = this.peek()!;
-        const spos = this._spos + this.toQueueFileEntry(firstElement).length;
+        const spos = this._spos + Buffer.byteLength(this.toQueueFileEntry(firstElement));
         await this.writeManifest(spos, this._epos);
         // ファイル書き込みに成功したらメモリの状態も合わせる
         this._spos = spos;
@@ -156,6 +156,7 @@ export class PersistentQueue<T> {
             await using queueStream = queueHandle.createReadStream({
                 start: this._spos,
                 end: this._epos-1,
+                encoding: 'utf-8',
                 highWaterMark: this.ioOptions?.readHighWaterMark
             });
             await using tmpQueueStream = tmpQueueHandle.createWriteStream({
@@ -220,6 +221,7 @@ export class PersistentQueue<T> {
             stream = handle.createReadStream({
                 start: this._spos,
                 end: this._epos-1,
+                encoding: 'utf-8',
                 highWaterMark: this.ioOptions?.readHighWaterMark,
             });
             let data = '';
@@ -227,12 +229,8 @@ export class PersistentQueue<T> {
                 for await (const chunk of stream) {
                     data += chunk;
                     const lines = data.split("\n");
-                    // 末尾のJSONが未完成の場合、dataに保持
-                    if (chunk[chunk.length - 1] != "\n") {
-                        data = lines.pop()!;
-                    } else {
-                        data = '';
-                    }
+                    // 最後の行は次回に持ち越し (最終のchunkは改行で終わるため、最終行は処理不要)
+                    data = lines.pop()!;
                     // JSONが完成した行はその場でパースして読み込む 
                     for (const line of lines) {
                         this._queue.push(JSON.parse(line));

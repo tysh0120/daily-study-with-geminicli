@@ -30,8 +30,11 @@ async function runTest() {
     console.log('Memory Spos after dequeue:', (q as any)._spos);
     assert.equal((q as any)._spos, stats.size, "Spos should match bytes consumed");
 
+    await q.enqueue(msg);
+
     // Try recovery
     (PersistentQueue as any).allQueueNames.clear();
+    const q2 = await PersistentQueue.create<string>(queueName);
     assert.equal(q2.size(), 1, "Should recover 1 item");
     assert.equal(q2.peek(), msg, "Recovered item should match");
 

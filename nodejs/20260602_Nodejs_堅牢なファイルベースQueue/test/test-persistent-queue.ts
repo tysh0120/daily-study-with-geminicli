@@ -45,6 +45,7 @@ await assert.rejects(
     QueueEmptyError,
     "Queueが空の時dequeueするとQueueEmptyErrorが発生"
 );
+
 // queueが空でpeekしたとき
 assert.equal(persistentQueue.peek(), undefined);
 // recovery
@@ -65,9 +66,15 @@ try {
 } finally {}
 
 // 名称重複時エラーを返す
-await PersistentQueue.create<number>('dupl-name');
+const duplQueue = await PersistentQueue.create<string>('dupl-name');
+await duplQueue.enqueue('a');
 assert.rejects(async () => await PersistentQueue.create('dupl-name'),
               DuplicateNameError);
+// closeで名称を解放
+duplQueue.close();
+assert.doesNotReject(async () => await fs.access('queues/dupl-name.queue'), 'closeでファイルは消えない');
+assert.doesNotReject(async () => await fs.access('queues/dupl-name.manifest'), 'closeでファイルは消えない');
+assert.doesNotReject(PersistentQueue.create('dupl-name'), 'closeで使用していた名称の新インスタンス生成可能に');
 
 // 後ろの余分なデータを削除
 await fs.writeFile('queues/test-truncate.queue', '1\n2\n3\n');

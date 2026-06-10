@@ -15,8 +15,8 @@ async function runTest() {
     await q.enqueue(1);
     
     // Clear the static set for testing purposes
-    (PersistentQueue as any).allQueueNames.clear();
-
+    await q.close();
+    
     // Simulate recovery to trigger loadFromQueueFile
     const q2 = await PersistentQueue.create<number>(queueName);
     assert.equal(q2.size(), 1);

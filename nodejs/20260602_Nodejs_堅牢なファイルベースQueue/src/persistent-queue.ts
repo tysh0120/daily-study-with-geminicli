@@ -52,6 +52,14 @@ export class PersistentQueue<T> {
     }
 
     /**
+     * close 
+     * 現在の名称を解放して他のインスタンスで使用できるようにする
+     */
+    close() {
+        PersistentQueue.allQueueNames.delete(this.name);
+    }
+   
+    /**
      * enqueue
      * @param {T} value
      */

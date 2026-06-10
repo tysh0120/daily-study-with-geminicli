@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import { PersistentQueue } from '../src/persistent-queue.js';
 import path from 'path';
 
-const queueDir = './queues-utf8-test';
+const queueDir = './queues';
 const queueName = 'test-utf8';
 
 try {

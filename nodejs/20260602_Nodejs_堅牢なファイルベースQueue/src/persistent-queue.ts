@@ -64,19 +64,18 @@ export class PersistentQueue<T> {
      * @param {T} value
      */
     async enqueue(value: T): Promise<void> {
-        let handle;
+        let epos = this._epos;
+        await using handle = await fs.open(this._queueFile, 'a');
         try {
-            handle = await fs.open(this._queueFile, 'a');
-            let line = JSON.stringify(value);
+            const line = JSON.stringify(value);
             await handle.writeFile(line + "\n");
             await handle.sync();
-            let epos= this._epos + Buffer.byteLength(line + "\n");
+            epos = epos + Buffer.byteLength(line + "\n");
             await this.writeManifest(this._spos, epos);
-            // ファイル書き込みに成功したらメモリの状態も合わせる
             this._epos = epos;
             this._queue.push(line);
-        } finally {
-            await handle?.close();
+        } catch {
+            await handle.truncate(this._epos);
         }
     }
    
@@ -91,10 +90,16 @@ export class PersistentQueue<T> {
 
         const firstElement = this._queue[0];
         const spos = this._spos + Buffer.byteLength(firstElement + "\n");
-        // ファイル書き込みに成功したらメモリの状態も合わせる
-        await this.writeManifest(spos, this._epos);
-        this._spos = spos;
-        return JSON.parse(this._queue.shift()!);
+        try {
+            // at least once まずは返却値のみ決定　メモリからはまだ削除しない
+            return this.peek()!;
+        } finally {
+            await this.writeManifest(spos, this._epos);
+            // ファイル書き込みに成功したらメモリの状態も合わせる
+            this._spos = spos;
+            // 最後にメモリから削除
+            this._queue.shift();
+        }
     }
 
     /**
@@ -125,7 +130,6 @@ export class PersistentQueue<T> {
         try {
             [this._spos, this._epos] = await this.readManifest();
             await this.loadFromQueueFile();
-            await this.purge();
         } catch (e: unknown) {
             if (e instanceof Object && 'code' in e && e.code == 'ENOENT') {
                 this._queue = [];

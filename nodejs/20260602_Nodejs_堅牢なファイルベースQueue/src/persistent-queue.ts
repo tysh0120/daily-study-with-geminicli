@@ -10,6 +10,15 @@ type PersistentQueueIOOptions = {
     writeHighWaterMark?: number
 };
 
+export function isNumberPair(obj: any): obj is [number, number] {
+    if (obj instanceof Array && obj.length == 2 &&
+        typeof obj[0] == 'number' &&
+        typeof obj[1] == 'number') {
+        return true;
+    }
+    return false;
+}
+
 export class PersistentQueue<T> {
 
     static allQueueNames: Set<string> = new Set();
@@ -76,7 +85,7 @@ export class PersistentQueue<T> {
             this._epos = epos;
             this._queue.push(line);
         } catch {
-            await handle.truncate(this._epos);
+            await this.trimQueueFileTail();
         }
     }
    
@@ -128,6 +137,7 @@ export class PersistentQueue<T> {
         try {
             [this._spos, this._epos] = await this.readManifest();
             await this.loadFromQueueFile();
+            await this.trimQueueFileTail();
         } catch (e: unknown) {
             if (e instanceof Object && 'code' in e && e.code == 'ENOENT') {
                 this._queue = [];
@@ -213,15 +223,14 @@ export class PersistentQueue<T> {
     private async readManifest(): Promise<[number, number]> {
         const content = await fs.readFile(this._manifestFile, { encoding: 'utf-8' });
         const parsed = JSON.parse(content);
-        if (!
-            (
-                parsed instanceof Array && parsed.length == 2 &&
-                typeof parsed[0] == 'number' && typeof parsed[1] == 'number'
-            )
-        ) {
+        if(!isNumberPair(parsed)) {
             throw new InvalidFormatError(this._manifestFile);
         }
-        return parsed as [number, number];
+        return parsed;
+    }
+
+    private async trimQueueFileTail() {
+        await fs.truncate(this._queueFile, this._epos);
     }
 
     private async loadFromQueueFile() {

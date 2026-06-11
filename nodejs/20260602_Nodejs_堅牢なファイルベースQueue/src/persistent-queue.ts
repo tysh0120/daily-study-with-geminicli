@@ -3,6 +3,7 @@ import { finished, pipeline } from 'node:stream/promises';
 
 export class QueueEmptyError extends Error {}
 export class DuplicateNameError extends Error {}
+export class InvalidFormatError extends Error {}
 
 type PersistentQueueIOOptions = {
     readHighWaterMark?: number,
@@ -221,9 +222,18 @@ export class PersistentQueue<T> {
      * manifestからデータ読み込み
      * @returns {Promise<number[]>} manifest
      */
-    private async readManifest(): Promise<number[]> {
+    private async readManifest(): Promise<[number, number]> {
         const content = await fs.readFile(this._manifestFile, { encoding: 'utf-8' });
-        return JSON.parse(content);
+        const parsed = JSON.parse(content);
+        if (!
+            (
+                parsed instanceof Array && parsed.length == 2 &&
+                typeof parsed[0] == 'number' && typeof parsed[1] == 'number'
+            )
+        ) {
+            throw new InvalidFormatError(this._manifestFile);
+        }
+        return parsed as [number, number];
     }
 
     private async loadFromQueueFile() {

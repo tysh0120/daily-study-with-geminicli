@@ -193,15 +193,6 @@ export class PersistentQueue<T> {
     }
 
     /**
-     * キューファイルの要素(改行区切りJSON)に変換
-     * @param {T} obj
-     */
-    private toQueueFileEntry(obj: T) {
-        // JSON文字列長 + １（改行分）増やす
-        return JSON.stringify(obj) + '\n';
-    }
-
-    /**
      * マニフェストファイルに書き込み
      * @param {number} spos 開始位置
      * @param {number} epos 終了位置

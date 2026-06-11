@@ -1,5 +1,5 @@
 import * as fs from 'node:fs/promises';
-import { finished, pipeline } from 'node:stream/promises';
+import { pipeline } from 'node:stream/promises';
 
 export class QueueEmptyError extends Error {}
 export class DuplicateNameError extends Error {}
@@ -21,9 +21,9 @@ export class PersistentQueue<T> {
     
     /**
      * @private
-     * @param {string} name
-     * @param {string _queueDir
-     * @param {PersistentQueueIOOptions} ioOptions 読み書き時のhigiWaterMarkを設定
+     * @param name
+     * @param _queueDir
+     * @param ioOptions 読み書き時のhigiWaterMarkを設定
      */
     private constructor(private name: string,
                         private _queueDir: string='./queues',
@@ -40,9 +40,9 @@ export class PersistentQueue<T> {
 
     /**
      * ファクトリメソッド
-     * @param {string} name
-     * @param {string} queueDir キューを作成するディレクトリを指定
-     * @param {PersistentQueueIOOption} ioOptions 読み書き時のhigiWaterMarkを設定
+     * @param name
+     * @param queueDir キューを作成するディレクトリを指定
+     * @param ioOptions 読み書き時のhigiWaterMarkを設定
      */
     static async create<T>(name: string,
                            queueDir='./queues',
@@ -62,7 +62,7 @@ export class PersistentQueue<T> {
    
     /**
      * enqueue
-     * @param {T} value
+     * @param value
      */
     async enqueue(value: T): Promise<void> {
         let epos = this._epos;
@@ -82,7 +82,6 @@ export class PersistentQueue<T> {
    
     /**
      * dequeue
-     * @returns {T}
      */
     async dequeue(): Promise<T> {
         if (this._queue.length == 0) {
@@ -105,7 +104,6 @@ export class PersistentQueue<T> {
 
     /**
      * 先頭要素を返却
-     * @returns {T}
      */
     peek(): T | undefined {
         const elmJson = this._queue[0];
@@ -113,8 +111,7 @@ export class PersistentQueue<T> {
     }
 
     /**
-     * サイズ
-     * @returns {number}
+     * キューのサイズ
      */
     size(): number {
         return this._queue.length;
@@ -194,8 +191,8 @@ export class PersistentQueue<T> {
 
     /**
      * マニフェストファイルに書き込み
-     * @param {number} spos 開始位置
-     * @param {number} epos 終了位置
+     * @param spos 開始位置
+     * @param epos 終了位置
      */
     private async writeManifest(spos: number, epos: number) {
         let handle;
@@ -211,7 +208,7 @@ export class PersistentQueue<T> {
 
     /**
      * manifestからデータ読み込み
-     * @returns {Promise<number[]>} manifest
+     * @returns manifest
      */
     private async readManifest(): Promise<[number, number]> {
         const content = await fs.readFile(this._manifestFile, { encoding: 'utf-8' });

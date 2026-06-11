@@ -259,6 +259,7 @@ export class PersistentQueue<T> {
             } catch (e) {
                 console.log('エラー発生');
                 console.error(e);
+                throw e;
             }
         } finally {
             stream?.close();

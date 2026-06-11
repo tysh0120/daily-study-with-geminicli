@@ -124,3 +124,12 @@ await hwQueue.purge();
 assert.equal(await fs.readFile('queues/test-highwatermark.manifest', 'utf-8'), '[0,0]');
 assert.equal(hwQueue.size(), 0);
 
+// キューオブジェクトの参照を外部で変更
+const refQueue = await PersistentQueue.create<number[]>('test-ref');
+const data = [1,2,3];
+await refQueue.enqueue(data);
+data.push(4);
+data.push(5);
+data.shift();
+assert.deepStrictEqual(refQueue.peek(), [1,2,3]);
+

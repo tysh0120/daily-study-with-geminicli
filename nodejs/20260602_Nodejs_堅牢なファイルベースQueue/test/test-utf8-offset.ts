@@ -23,7 +23,8 @@ try {
     // JSON.stringify("あ") + "\n" -> "\"あ\"\n"
     // "\"" (1 byte) + "あ" (3 bytes) + "\"" (1 byte) + "\n" (1 byte) = 6 bytes
     assert.equal(epos, 6, 'epos should be 6 bytes for "あ"');
-    
+    q.close();
+
     // Recovery test
     const q2 = await PersistentQueue.create<string>(queueName, queueDir);
     assert.equal(q2.size(), 1);

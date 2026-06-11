@@ -12,7 +12,7 @@ type PersistentQueueIOOptions = {
 export class PersistentQueue<T> {
 
     static allQueueNames: Set<string> = new Set();
-    private _queue: T[];
+    private _queue: string[];
     private _manifestFile: string;
     private _queueFile: string;
     private _spos: number; 
@@ -67,14 +67,14 @@ export class PersistentQueue<T> {
         let handle;
         try {
             handle = await fs.open(this._queueFile, 'a');
-            const line = this.toQueueFileEntry(value);
-            await handle.writeFile(line);
+            let line = JSON.stringify(value);
+            await handle.writeFile(line + "\n");
             await handle.sync();
-            let epos= this._epos + Buffer.byteLength(line);
+            let epos= this._epos + Buffer.byteLength(line + "\n");
             await this.writeManifest(this._spos, epos);
             // ファイル書き込みに成功したらメモリの状態も合わせる
             this._epos = epos;
-            this._queue.push(value);
+            this._queue.push(line);
         } finally {
             await handle?.close();
         }
@@ -89,12 +89,12 @@ export class PersistentQueue<T> {
             throw new QueueEmptyError('キューが空です');
         }
 
-        const firstElement = this.peek()!;
-        const spos = this._spos + Buffer.byteLength(this.toQueueFileEntry(firstElement));
-        await this.writeManifest(spos, this._epos);
+        const firstElement = this._queue[0];
+        const spos = this._spos + Buffer.byteLength(firstElement + "\n");
         // ファイル書き込みに成功したらメモリの状態も合わせる
+        await this.writeManifest(spos, this._epos);
         this._spos = spos;
-        return this._queue.shift()!;
+        return JSON.parse(this._queue.shift()!);
     }
 
     /**
@@ -102,7 +102,8 @@ export class PersistentQueue<T> {
      * @returns {T}
      */
     peek(): T | undefined {
-        return this._queue[0];
+        const elmJson = this._queue[0];
+        return elmJson && JSON.parse(elmJson);
     }
 
     /**
@@ -239,9 +240,9 @@ export class PersistentQueue<T> {
                     const lines = data.split("\n");
                     // 最後の行は次回に持ち越し (最終のchunkは改行で終わるため、最終行は処理不要)
                     data = lines.pop()!;
-                    // JSONが完成した行はその場でパースして読み込む 
+                    // JSONが完成した行はその場で
                     for (const line of lines) {
-                        this._queue.push(JSON.parse(line));
+                        this._queue.push(line);
                     }
                 }
             } catch (e) {

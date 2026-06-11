@@ -11,7 +11,7 @@ type PersistentQueueIOOptions = {
 };
 
 export function isNumberPair(obj: any): obj is [number, number] {
-    if (obj instanceof Array && obj.length == 2 &&
+    if (Array.isArray(obj) && obj.length == 2 &&
         typeof obj[0] == 'number' &&
         typeof obj[1] == 'number') {
         return true;

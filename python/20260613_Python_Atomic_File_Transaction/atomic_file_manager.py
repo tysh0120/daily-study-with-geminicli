@@ -7,7 +7,6 @@ from typing import Optional
 
 @dataclass
 class CommitInfo:
-    action: str
     src_path: Optional[str | Path] = None
     dest_path: Optional[str | Path] = None
     backup_path: Optional[str | Path] = None
@@ -52,31 +51,21 @@ class FileTransaction:
         # コミットリストに追加
         self.commit_list.append(
             CommitInfo(
-                "write",
                 src_path=src_path,
                 dest_path=Path(path).resolve(),
-                backup_path=self.move_to_temp(path),
             )
         )
 
     def delete(self, path: str | Path):
         # コミットリストに追加
-        self.commit_list.append(
-            CommitInfo(
-                "delete",
-                src_path=Path(path).resolve(),
-                dest_path=self.generate_temp_file_name(),
-            )
-        )
+        self.commit_list.append(CommitInfo(dest_path=Path(path).resolve()))
 
     def move(self, src_path: str | Path, dest_path: str | Path):
         # コミットリストに追加
         self.commit_list.append(
             CommitInfo(
-                "move",
                 src_path=Path(src_path).resolve(),
                 dest_path=Path(dest_path).resolve(),
-                backup_path=self.move_to_temp(dest_path),
             )
         )
 
@@ -84,6 +73,9 @@ class FileTransaction:
         print("commit")
         try:
             for commit_info in self.commit_list:
+                # バックアップ作成
+                commit_info.backup_path = self.move_to_temp(commit_info.dest_path)
+                # ファイルの移動
                 if commit_info.src_path and commit_info.dest_path:
                     os.replace(commit_info.src_path, commit_info.dest_path)
                 commit_info.done = True

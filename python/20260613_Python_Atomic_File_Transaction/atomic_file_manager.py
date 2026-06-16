@@ -1,8 +1,17 @@
 import os
 from pathlib import Path
 import tempfile
+from dataclasses import dataclass
+from typing import Optional
 
-# import sutil
+
+@dataclass
+class CommitInfo:
+    action: str
+    src_path: Optional[str | Path] = None
+    dest_path: Optional[str | Path] = None
+    backup_path: Optional[str | Path] = None
+    done: bool = False
 
 
 class FileTransaction:
@@ -42,35 +51,32 @@ class FileTransaction:
 
         # コミットリストに追加
         self.commit_list.append(
-            dict(
-                action="write",
+            CommitInfo(
+                "write",
                 src_path=src_path,
                 dest_path=Path(path).resolve(),
-                backup_path=self.move_to_temp(path),  # 書き込み先を退避
-                done=False,
+                backup_path=self.move_to_temp(path),
             )
         )
 
     def delete(self, path: str | Path):
         # コミットリストに追加
         self.commit_list.append(
-            dict(
-                action="delete",
+            CommitInfo(
+                "delete",
                 src_path=Path(path).resolve(),
                 dest_path=self.generate_temp_file_name(),
-                done=False,
             )
         )
 
     def move(self, src_path: str | Path, dest_path: str | Path):
         # コミットリストに追加
         self.commit_list.append(
-            dict(
-                action="move",
+            CommitInfo(
+                "move",
                 src_path=Path(src_path).resolve(),
                 dest_path=Path(dest_path).resolve(),
-                backup_path=self.move_to_temp(dest_path),  # 書き込み先を退避
-                done=False,
+                backup_path=self.move_to_temp(dest_path),
             )
         )
 
@@ -78,9 +84,9 @@ class FileTransaction:
         print("commit")
         try:
             for commit_info in self.commit_list:
-                if "src_path" in commit_info and "dest_path" in commit_info:
-                    os.replace(commit_info["src_path"], commit_info["dest_path"])
-                commit_info["done"] = True
+                if commit_info.src_path and commit_info.dest_path:
+                    os.replace(commit_info.src_path, commit_info.dest_path)
+                commit_info.done = True
         except Exception as e:
             print(f"エラー発生 {e}")
             self.rollback()
@@ -90,14 +96,14 @@ class FileTransaction:
         print("rollback")
         for commit_info in self.commit_list[::-1]:
             print(commit_info)
-            if not commit_info["done"]:
+            if not commit_info.done:
                 continue
-            if "src_path" in commit_info and "dest_path" in commit_info:
-                os.replace(commit_info["dest_path"], commit_info["src_path"])
+            if commit_info.src_path and commit_info.dest_path:
+                os.replace(commit_info.dest_path, commit_info.src_path)
 
-            if "backup_path" in commit_info and "dest_path" in commit_info:
-                os.replace(commit_info["backup_path"], commit_info["dest_path"])
-            commit_info["done"] = False
+            if commit_info.backup_path and commit_info.dest_path:
+                os.replace(commit_info.backup_path, commit_info.dest_path)
+            commit_info.done = False
 
     def generate_temp_file_name(self):
         self.temp_id = self.temp_id + 1

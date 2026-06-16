@@ -5,3 +5,4 @@ tmp/
 *.swp
 node_modules/
 dist/
+__pycache__/

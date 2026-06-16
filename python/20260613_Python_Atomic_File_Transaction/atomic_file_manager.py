@@ -18,11 +18,11 @@ class FileTransaction:
         self._workdir = tempfile.TemporaryDirectory()
         return self
 
-    def __exit__(self, *err):
+    def __exit__(self, exc_type, _exc_val, _exc_tb):
         self.commit()
         self._workdir.cleanup()
-        if err[0] is not None:
-            print(f"エラー発生 {err}")
+        if exc_type is not None:
+            print(f"エラー発生")
 
     def move_to_temp(self, path: str | Path):
         """一時フォルダにatomicに移動して移動後のファイル名を返却"""

@@ -27,12 +27,13 @@ class FileTransaction:
         return self
 
     def __exit__(self, exc_type, _exc_val, _exc_tb):
-        if exc_type is not None:
-            print(f"エラー発生")
-            self._rollback()
-            return
-        self._commit()
-        self._workdir.cleanup()
+        try:
+            if exc_type is not None:
+                self._rollback()
+                return
+            self._commit()
+        finally:
+            self._workdir.cleanup()
 
     def _move_to_temp(self, path: str | Path) -> str | None:
         """一時フォルダにatomicに移動して移動後のファイル名を返却"""
@@ -97,7 +98,6 @@ class FileTransaction:
                     os.replace(commit_info.src_path, commit_info.dest_path)
                 commit_info.done = True
         except Exception as e:
-            print(f"エラー発生 {e}")
             self._rollback()
             raise e
 
@@ -109,7 +109,6 @@ class FileTransaction:
         """
         print("rollback")
         for commit_info in self._commit_list[::-1]:
-            print(commit_info)
             if not commit_info.done:
                 continue
             if commit_info.src_path and commit_info.dest_path:

@@ -40,7 +40,7 @@ class TestFileTransaction(unittest.TestCase):
     def test_write(self):
         with FileTransaction() as tx:
             tx.write("test/data/test.txt", "test")
-        self.assertTrue("test.txt")
+        self.assertTrue(os.path.isfile("test.txt"))
 
     def test_move(self):
         pathlib.Path("test/data/test.txt").touch()
@@ -117,24 +117,14 @@ class TestFileTransaction(unittest.TestCase):
         )
 
     def test_delete_not_exist_file(self):
-        try:
+        with self.assertRaises(FileNotFoundError):
             with FileTransaction() as tx:
                 tx.delete("test/data/notfound.txt")
-                raise Exception(
-                    "存在しないファイル指定してdeleteしたけどFileNotFountが発生しなかった"
-                )
-        except FileNotFoundError:
-            pass
 
     def test_move_not_exist_file(self):
-        try:
+        with self.assertRaises(FileNotFoundError):
             with FileTransaction() as tx:
                 tx.move("test/data/notfound.txt", "test/data/dummy.txt")
-                raise Exception(
-                    "存在しないファイル指定してmoveしたけどFileNotFountが発生しなかった"
-                )
-        except FileNotFoundError:
-            pass
 
 
 if __name__ == "__main__":

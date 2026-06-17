@@ -19,74 +19,94 @@ class FileTransaction:
     """
 
     def __init__(self):
-        self.commit_list = []
-        self.temp_id = 0
+        self._commit_list = []
+        self._temp_id = 0
 
     def __enter__(self):
         self._workdir = tempfile.TemporaryDirectory()
         return self
 
     def __exit__(self, exc_type, _exc_val, _exc_tb):
-        self.commit()
+        self._commit()
         self._workdir.cleanup()
         if exc_type is not None:
             print(f"エラー発生")
 
-    def move_to_temp(self, path: str | Path):
+    def _move_to_temp(self, path: str | Path) -> str | None:
         """一時フォルダにatomicに移動して移動後のファイル名を返却"""
         try:
-            temp_path = self.generate_temp_file_name()
+            temp_path = self._generate_temp_file_name()
             os.replace(path, temp_path)
             return temp_path
         except FileNotFoundError:
             return
 
-    def write(self, path: str | Path, content: str):
-        # 一時フォルダにファイル書き込み
-        src_path = self.generate_temp_file_name()
+    def write(self, path: str | Path, content: str) -> None:
+        """
+        ファイル書き込み
+        一時フォルダにファイルを作成してコミットリストに情報追加
+        """
+        src_path = self._generate_temp_file_name()
         with open(src_path, "w") as f:
             f.write(content)
             f.flush()
 
         # コミットリストに追加
-        self.commit_list.append(
+        self._commit_list.append(
             CommitInfo(
                 src_path=src_path,
                 dest_path=Path(path).resolve(),
             )
         )
 
-    def delete(self, path: str | Path):
+    def delete(self, path: str | Path) -> None:
+        """
+        ファイル削除
+        コミットリストに情報追加
+        """
         # コミットリストに追加
-        self.commit_list.append(CommitInfo(dest_path=Path(path).resolve()))
+        self._commit_list.append(CommitInfo(dest_path=Path(path).resolve()))
 
-    def move(self, src_path: str | Path, dest_path: str | Path):
+    def move(self, src_path: str | Path, dest_path: str | Path) -> None:
+        """
+        ファイルリネーム
+        コミットリストに情報追加
+        """
         # コミットリストに追加
-        self.commit_list.append(
+        self._commit_list.append(
             CommitInfo(
                 src_path=Path(src_path).resolve(),
                 dest_path=Path(dest_path).resolve(),
             )
         )
 
-    def commit(self):
+    def _commit(self) -> None:
+        """
+        コミット
+        コミットリストに指定されたファイルの操作を行う
+        """
         print("commit")
         try:
-            for commit_info in self.commit_list:
+            for commit_info in self._commit_list:
                 # バックアップ作成
-                commit_info.backup_path = self.move_to_temp(commit_info.dest_path)
+                commit_info.backup_path = self._move_to_temp(commit_info.dest_path)
                 # ファイルの移動
                 if commit_info.src_path and commit_info.dest_path:
                     os.replace(commit_info.src_path, commit_info.dest_path)
                 commit_info.done = True
         except Exception as e:
             print(f"エラー発生 {e}")
-            self.rollback()
+            self._rollback()
             raise e
 
-    def rollback(self):
+    def _rollback(self) -> None:
+        """
+        ロールバック
+        処理中およびコミット中に異常発生時にコールされる想定。
+        途中までコミットされた情報をもとに復元する。
+        """
         print("rollback")
-        for commit_info in self.commit_list[::-1]:
+        for commit_info in self._commit_list[::-1]:
             print(commit_info)
             if not commit_info.done:
                 continue
@@ -97,16 +117,9 @@ class FileTransaction:
                 os.replace(commit_info.backup_path, commit_info.dest_path)
             commit_info.done = False
 
-    def generate_temp_file_name(self):
-        self.temp_id = self.temp_id + 1
-        return os.path.join(self._workdir.name, str(self.temp_id))
-
-
-if __name__ == "__main__":
-    with FileTransaction() as tx:
-        tx.write("test/data/aa.txt", "bb")
-        tx.move("test/data/aa.txt", "test/data/bb.txt")
-        with open("test/data/xx.txt", "w") as f:
-            f.write("xx")
-            f.flush()
-        tx.delete("test/data/xx.txt")
+    def _generate_temp_file_name(self) -> str:
+        """
+        一時ディレクトリの中で一意のファイル名を作成して返却
+        """
+        self._temp_id = self._temp_id + 1
+        return os.path.join(self._workdir.name, str(self._temp_id))

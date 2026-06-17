@@ -22,18 +22,18 @@ class TestFileTransaction(unittest.TestCase):
     def test_generate_temp_file_name(self):
         with FileTransaction() as tx:
             self.assertNotEqual(
-                tx.generate_temp_file_name(),
-                tx.generate_temp_file_name(),
+                tx._generate_temp_file_name(),
+                tx._generate_temp_file_name(),
                 "generate_temp_file_nameは呼ばれるたびに異なる値を返す",
             )
             self.assertNotEqual(
-                tx.generate_temp_file_name(),
-                tx.generate_temp_file_name(),
+                tx._generate_temp_file_name(),
+                tx._generate_temp_file_name(),
                 "generate_temp_file_nameは呼ばれるたびに異なる値を返す",
             )
             self.assertNotEqual(
-                tx.generate_temp_file_name(),
-                tx.generate_temp_file_name(),
+                tx._generate_temp_file_name(),
+                tx._generate_temp_file_name(),
                 "generate_temp_file_nameは呼ばれるたびに異なる値を返す",
             )
 

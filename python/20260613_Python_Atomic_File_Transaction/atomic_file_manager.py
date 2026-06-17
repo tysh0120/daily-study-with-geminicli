@@ -27,10 +27,12 @@ class FileTransaction:
         return self
 
     def __exit__(self, exc_type, _exc_val, _exc_tb):
-        self._commit()
-        self._workdir.cleanup()
         if exc_type is not None:
             print(f"エラー発生")
+            self._rollback()
+            return
+        self._commit()
+        self._workdir.cleanup()
 
     def _move_to_temp(self, path: str | Path) -> str | None:
         """一時フォルダにatomicに移動して移動後のファイル名を返却"""

@@ -47,6 +47,36 @@ class TestFileTransaction(unittest.TestCase):
 
         self.assertFalse(os.path.isfile("test/data/test.txt"))
 
+    def test_dst_path_original_file_will_be_recovered(self):
+        with open("test/data/original.txt", "w", encoding="utf-8") as f:
+            f.write("original text")
+            f.flush()
+
+        with self.assertRaises(FileNotFoundError):
+            with FileTransaction() as tx:
+                tx.delete("test/data/original.txt")
+                tx.delete("test/data/exception_raises")
+        self.assertTrue(os.path.isfile("test/data/original.txt"))
+        with open("test/data/original.txt") as f:
+            self.assertEqual("original text", f.read())
+
+        with self.assertRaises(FileNotFoundError):
+            with FileTransaction() as tx:
+                tx.write("test/data/original.txt", "modified")
+                tx.delete("test/data/exception_raises")
+        self.assertTrue(os.path.isfile("test/data/original.txt"))
+        with open("test/data/original.txt") as f:
+            self.assertEqual("original text", f.read())
+
+        with self.assertRaises(FileNotFoundError):
+            with FileTransaction() as tx:
+                tx.write("test/data/test.txt", "modified")
+                tx.move("test/data/test.txt", "test/data/original.txt")
+                tx.delete("test/data/exception_raise")
+        self.assertTrue(os.path.isfile("test/data/original.txt"))
+        with open("test/data/original.txt") as f:
+            self.assertEqual("original text", f.read())
+
     def test_write_move_delete(self):
         self.assertFalse(os.path.isfile("test/data/test.txt"))
         with FileTransaction() as tx:

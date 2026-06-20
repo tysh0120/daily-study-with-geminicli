@@ -42,7 +42,9 @@ class ReplaceCommand:
     def do(self) -> None:
         # バックアップ取得
         try:
-            os.replace(self.dst, self.workdir.generate_temp_name())
+            temp_name = self.workdir.generate_temp_name()
+            os.replace(self.dst, temp_name)
+            self.bak = temp_name
         except FileNotFoundError:
             pass
         # ファイル移動

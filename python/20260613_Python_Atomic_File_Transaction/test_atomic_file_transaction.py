@@ -1,8 +1,14 @@
 import unittest
-from atomic_file_manager import FileTransaction, WorkDir
+from atomic_file_manager import FileTransaction, WorkDir, MultipleException
 import os
 import shutil
 import pathlib
+
+
+class TestMultipleException(unittest.TestCase):
+    def test_str(self):
+        me = MultipleException("this is a message", [])
+        self.assertEqual(str(me), "this is a message")
 
 
 class TestWorkDir(unittest.TestCase):

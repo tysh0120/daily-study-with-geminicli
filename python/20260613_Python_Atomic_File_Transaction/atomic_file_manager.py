@@ -8,14 +8,10 @@ from typing import Optional
 class MultipleException(Exception):
     def __init__(self, message, exceptions: list[Exception]):
         self._exceptions = exceptions
-        self._message = message
-        super(message)
+        super().__init__(message)
 
     def exceptions(self):
         return self._exceptions
-
-    def __str__(self):
-        return self._message
 
 
 class WorkDir:
@@ -131,7 +127,7 @@ class FileTransaction:
     def _commit(self) -> None:
         """
         コミット
-        コミットリストに指定されたファイルの操作を行う
+        指定されたファイルの操作を行う
         """
         print("commit")
         try:

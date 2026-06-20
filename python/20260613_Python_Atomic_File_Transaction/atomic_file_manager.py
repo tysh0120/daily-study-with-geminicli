@@ -9,7 +9,7 @@ class MultipleException(Exception):
     def __init__(self, message, exceptions: list[Exception]):
         self._exceptions = exceptions
         self._message = message
-        super()
+        super(message)
 
     def exceptions(self):
         return self._exceptions

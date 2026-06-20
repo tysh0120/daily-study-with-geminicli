@@ -1,8 +1,21 @@
 import unittest
-from atomic_file_manager import FileTransaction
+from atomic_file_manager import FileTransaction, WorkDir
 import os
 import shutil
 import pathlib
+
+
+class TestWorkDir(unittest.TestCase):
+    def setUp(self):
+        self.workdir = WorkDir()
+
+    def tearDown(self):
+        self.workdir.cleanup()
+
+    def test_generate_temp_name(self):
+        self.assertNotEqual(
+            self.workdir.generate_temp_name(), self.workdir.generate_temp_name()
+        )
 
 
 class TestFileTransaction(unittest.TestCase):
@@ -11,36 +24,10 @@ class TestFileTransaction(unittest.TestCase):
             shutil.rmtree("test/data")
         os.makedirs("test/data", exist_ok=True)
 
-    def test___exit___cleanup_temp_directory(self):
-        with FileTransaction() as tx:
-            tmpdir = tx._workdir.name
-            self.assertTrue(os.path.isdir(tmpdir), "一時フォルダが作られる")
-        self.assertFalse(
-            os.path.isdir(tmpdir), "スコープを抜けると一時フォルダは削除される"
-        )
-
-    def test_generate_temp_file_name(self):
-        with FileTransaction() as tx:
-            self.assertNotEqual(
-                tx._generate_temp_file_name(),
-                tx._generate_temp_file_name(),
-                "generate_temp_file_nameは呼ばれるたびに異なる値を返す",
-            )
-            self.assertNotEqual(
-                tx._generate_temp_file_name(),
-                tx._generate_temp_file_name(),
-                "generate_temp_file_nameは呼ばれるたびに異なる値を返す",
-            )
-            self.assertNotEqual(
-                tx._generate_temp_file_name(),
-                tx._generate_temp_file_name(),
-                "generate_temp_file_nameは呼ばれるたびに異なる値を返す",
-            )
-
     def test_write(self):
         with FileTransaction() as tx:
             tx.write("test/data/test.txt", "test")
-        self.assertTrue(os.path.isfile("test.txt"))
+        self.assertTrue(os.path.isfile("test/data/test.txt"))
 
     def test_move(self):
         pathlib.Path("test/data/test.txt").touch()

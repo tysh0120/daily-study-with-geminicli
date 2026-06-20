@@ -5,12 +5,47 @@ from dataclasses import dataclass
 from typing import Optional
 
 
+class WorkDir:
+    def __init__(self):
+        self._workdir = tempfile.TemporaryDirectory()
+        self._counter = 0
+
+    def generate_temp_name(self) -> str:
+        self._counter = self._counter + 1
+        return os.path.join(self._workdir.name, str(self._counter))
+
+    def cleanup(self):
+        self._workdir.cleanup()
+
+
 @dataclass
-class CommitInfo:
-    src_path: Optional[str | Path] = None
-    dest_path: Optional[str | Path] = None
-    backup_path: Optional[str | Path] = None
+class ReplaceCommand:
+    src: str | Path
+    dst: str | Path
+    workdir: WorkDir
+    bak: Optional[str | Path] = None
     done: bool = False
+
+    def do(self) -> None:
+        # バックアップ取得
+        try:
+            os.replace(self.dst, self.workdir.generate_temp_name())
+        except FileNotFoundError:
+            pass
+        # ファイル移動
+        os.replace(self.src, self.dst)
+        self.done = True
+
+    def undo(self) -> None:
+        self.done = False
+        # ファイル移動取り消し
+        os.replace(self.dst, self.src)
+        # バックアップがあれば復元
+        if self.bak:
+            os.replace(self.bak, self.dst)
+
+    def is_done(self) -> bool:
+        return self.done
 
 
 class FileTransaction:
@@ -19,11 +54,11 @@ class FileTransaction:
     """
 
     def __init__(self):
-        self._commit_list = []
+        self._replace_commands = []
         self._temp_id = 0
 
     def __enter__(self):
-        self._workdir = tempfile.TemporaryDirectory()
+        self._workdir = WorkDir()
         return self
 
     def __exit__(self, exc_type, _exc_val, _exc_tb):
@@ -35,31 +70,19 @@ class FileTransaction:
         finally:
             self._workdir.cleanup()
 
-    def _move_to_temp(self, path: str | Path) -> str | None:
-        """一時フォルダにatomicに移動して移動後のファイル名を返却"""
-        try:
-            temp_path = self._generate_temp_file_name()
-            os.replace(path, temp_path)
-            return temp_path
-        except FileNotFoundError:
-            return
-
     def write(self, path: str | Path, content: str) -> None:
         """
         ファイル書き込み
         一時フォルダにファイルを作成してコミットリストに情報追加
         """
-        src_path = self._generate_temp_file_name()
+        src_path = self._workdir.generate_temp_name()
         with open(src_path, "w") as f:
             f.write(content)
             f.flush()
 
         # コミットリストに追加
-        self._commit_list.append(
-            CommitInfo(
-                src_path=src_path,
-                dest_path=Path(path).resolve(),
-            )
+        self._replace_commands.append(
+            ReplaceCommand(src=src_path, dst=path, workdir=self._workdir)
         )
 
     def delete(self, path: str | Path) -> None:
@@ -68,7 +91,13 @@ class FileTransaction:
         コミットリストに情報追加
         """
         # コミットリストに追加
-        self._commit_list.append(CommitInfo(dest_path=Path(path).resolve()))
+        self._replace_commands.append(
+            ReplaceCommand(
+                src=Path(path).resolve(),
+                dst=self._workdir.generate_temp_name(),
+                workdir=self._workdir,
+            )
+        )
 
     def move(self, src_path: str | Path, dest_path: str | Path) -> None:
         """
@@ -76,10 +105,11 @@ class FileTransaction:
         コミットリストに情報追加
         """
         # コミットリストに追加
-        self._commit_list.append(
-            CommitInfo(
-                src_path=Path(src_path).resolve(),
-                dest_path=Path(dest_path).resolve(),
+        self._replace_commands.append(
+            ReplaceCommand(
+                src=Path(src_path).resolve(),
+                dst=Path(dest_path).resolve(),
+                workdir=self._workdir,
             )
         )
 
@@ -90,13 +120,8 @@ class FileTransaction:
         """
         print("commit")
         try:
-            for commit_info in self._commit_list:
-                # バックアップ作成
-                commit_info.backup_path = self._move_to_temp(commit_info.dest_path)
-                # ファイルの移動
-                if commit_info.src_path and commit_info.dest_path:
-                    os.replace(commit_info.src_path, commit_info.dest_path)
-                commit_info.done = True
+            for command in self._replace_commands:
+                command.do()
         except Exception as e:
             self._rollback()
             raise e
@@ -108,19 +133,7 @@ class FileTransaction:
         途中までコミットされた情報をもとに復元する。
         """
         print("rollback")
-        for commit_info in self._commit_list[::-1]:
-            if not commit_info.done:
+        for command in self._replace_commands[::-1]:
+            if not command.is_done():
                 continue
-            if commit_info.src_path and commit_info.dest_path:
-                os.replace(commit_info.dest_path, commit_info.src_path)
-
-            if commit_info.backup_path and commit_info.dest_path:
-                os.replace(commit_info.backup_path, commit_info.dest_path)
-            commit_info.done = False
-
-    def _generate_temp_file_name(self) -> str:
-        """
-        一時ディレクトリの中で一意のファイル名を作成して返却
-        """
-        self._temp_id = self._temp_id + 1
-        return os.path.join(self._workdir.name, str(self._temp_id))
+            command.undo()

@@ -5,6 +5,19 @@ from dataclasses import dataclass
 from typing import Optional
 
 
+class MultipleException(Exception):
+    def __init__(self, message, exceptions: list[Exception]):
+        self._exceptions = exceptions
+        self._message = message
+        super()
+
+    def exceptions(self):
+        return self._exceptions
+
+    def __str__(self):
+        return self._message
+
+
 class WorkDir:
     def __init__(self):
         self._workdir = tempfile.TemporaryDirectory()
@@ -133,7 +146,13 @@ class FileTransaction:
         途中までコミットされた情報をもとに復元する。
         """
         print("rollback")
+        exceptions = []
         for command in self._replace_commands[::-1]:
             if not command.is_done():
                 continue
-            command.undo()
+            try:
+                command.undo()
+            except Exception as e:
+                exceptions.append(e)
+        if len(exceptions) > 0:
+            raise MultipleException("ロールバック中にエラーが発生しました", exceptions)

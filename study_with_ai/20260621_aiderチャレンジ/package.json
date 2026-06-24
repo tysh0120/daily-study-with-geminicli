@@ -1,0 +1,17 @@
+{
+  "name": "rate-limitter",
+  "version": "1.0.0",
+  "description": "コーディングのメンターに使用していたGemini CLIが2026-06-18で使用できなくなってしまった。 antigravity cliを試したが、あっという間に無料トークン使いきってしまった。 有料プラン契約を検討しているが、その前に少し代替を探してみる",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

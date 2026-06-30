@@ -1,52 +1,15 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { RateLimitter } from './rate-limitter.js';
-
-const startTimes: Date[] = [];
-type ExecRecord = { name: string, start?: Date, end?: Date };
-
-/**
- * テスト用タスク作成クラス
- * 実行履歴と稼働数を残すタスクを生成
- */
-class TaskMaker {
-    protected _execRecords: ExecRecord[];
-    protected _taskCounter: number;
-
-    constructor() {
-        this._execRecords = [];
-        this._taskCounter = 0;
-    }
-
-    getExecRecords() {
-        return this._execRecords;
-    }
-
-    getTaskCounter() {
-        return this._taskCounter;
-    }
-
-    makeTask(name: string, duration: number, success: boolean=true) {
-        return () => new Promise((resolve, reject) => {
-            this._taskCounter++;
-            const record: ExecRecord = { name, start: new Date() };
-            setTimeout(() => {
-                record.end = new Date();
-                this._execRecords.push(record);
-                this._taskCounter--;
-                if (success) resolve(`${name } 成功`);
-                else reject(`${name} エラー発生`);
-            }, duration);
-        });
-    }
-}
+import { TaskMaker } from './testutil/task-maker.js';
 
 async function sleep(ms: number): Promise<void> { 
     await new Promise(resolve => setTimeout(resolve, ms));
 }
 
+
 describe('RateLimitter', () => {
     let rateLimitter: RateLimitter;
-    let taskMaker: TaskMaker;
+    let taskMaker: TaskMaker<string>;
 
     beforeEach(() => {
         rateLimitter = new RateLimitter({ limit: 2, interval: 100 });
@@ -54,32 +17,69 @@ describe('RateLimitter', () => {
     });
 
     test('runは最大実行数までのタスクを起動する', async () => {
-        rateLimitter.run(taskMaker.makeTask('task1', 50));
-        rateLimitter.run(taskMaker.makeTask('task2', 100));
-        rateLimitter.run(taskMaker.makeTask('task3', 50));
+        const handle1 = taskMaker.makeTask('task1');
+        const handle2 = taskMaker.makeTask('task2');
+        const handle3 = taskMaker.makeTask('task3');
 
-        await sleep(10);
-        expect(taskMaker.getTaskCounter()).toBe(2);
-        await sleep(50);
-        expect(taskMaker.getTaskCounter()).toBe(2);
-        await sleep(50);
-        expect(taskMaker.getExecRecords().length).toBe(3);
-        console.log(taskMaker.getExecRecords());
+        rateLimitter.run(handle1.task);
+        rateLimitter.run(handle2.task);
+        rateLimitter.run(handle3.task);
+        
+        expect(taskMaker.getTaskCount()).toBe(2);
+        
+        handle1.resolve('success');
+        expect(taskMaker.getTaskCount()).toBe(1);
+        await sleep(110);
+        expect(taskMaker.getTaskCount()).toBe(2);
+       
+        handle2.resolve('success');
+        sleep(5);
+        expect(taskMaker.getTaskCount()).toBe(1);
+ 
+        handle3.resolve('success');
+        sleep(5);
+        expect(taskMaker.getTaskCount()).toBe(0);
+
+        expect(taskMaker.getTaskRecords().size).toBe(3);
+        console.log(taskMaker.getTaskRecords());
+
     });
 
     test('runはタスク開始から規定時間を超えたらまだ終了していなくても最大実行数のタスクを実行する', async () => {
-        rateLimitter.run(taskMaker.makeTask('task1', 200));
-        rateLimitter.run(taskMaker.makeTask('task2', 200));
-        rateLimitter.run(taskMaker.makeTask('task2', 200));
+        const handle1 = taskMaker.makeTask('task1');
+        const handle2 = taskMaker.makeTask('task2');
+        const handle3 = taskMaker.makeTask('task3');
 
-        await sleep(10);
-        expect(taskMaker.getTaskCounter()).toBe(2);
+        rateLimitter.run(handle1.task);
+        rateLimitter.run(handle2.task);
+        rateLimitter.run(handle3.task);
+
+        expect(taskMaker.getTaskCount()).toBe(2);
         await sleep(100);
-        expect(taskMaker.getTaskCounter()).toBe(3);
-        await sleep(100);
-        expect(taskMaker.getTaskCounter()).toBe(1);
+        expect(taskMaker.getTaskCount()).toBe(3);
     });
 
-});
 
+    test('実行待ちキューのエントリが無くなった後', async () => {
+        const handle1 = taskMaker.makeTask('task1');
+        const handle2 = taskMaker.makeTask('task2');
+        
+        rateLimitter.run(handle1.task);
+        rateLimitter.run(handle2.task);
+
+        handle1.resolve('ok');
+
+        expect(taskMaker.getTaskCount()).toBe(1);
+ 
+        handle2.resolve('ok');
+        expect(taskMaker.getTaskCount()).toBe(0);
+
+        const handle3 = taskMaker.makeTask('task3');
+        rateLimitter.run(handle3.task);
+
+        await sleep(100);
+        console.log(taskMaker);
+        expect(taskMaker.getTaskCount()).toBe(1);
+    });
+});
 

@@ -1,11 +1,15 @@
 type QueueEntry = {
-    resolve: any,
-    reject: any
+    resolve: () => void,
+    reject: (error: unknown) => void
 }
 
-export class RateLimitter {
-    private queue: QueueEntry[] = [];
-    private counter: number = 0;
+export class RateLimitter<T> {
+    private _queue: QueueEntry<T>[] = [];
+    private _result: {
+        result?: T,
+        error?: unknown
+    }[]= [];
+    private _counter: number = 0;
     private _limit: number;
     private _interval: number;
 
@@ -24,41 +28,40 @@ export class RateLimitter {
      * @param: task: タスク
      */
     public async run(task: any) {
-        if (this.counter < this._limit) {
-            this.counter++;
-            console.log(`counter: ${this.counter}`);
+        if (this._counter < this._limit) {
+            this._counter++;
+            console.log(`counter: ${this._counter}`);
         } else {
             // 実行枠いっぱいならqueueに登録して待ち
+            console.log('いっぱいだった', this._counter, this._limit);
             await new Promise((resolve, reject) => {
-                this.queue.push({ resolve, reject });
+                this._queue.push({ resolve, reject });
             });
         }
-        // _interval時間後に、queueに入っていればresolveする処理を予約
-        let hasQueueResolved = false;
-        let counterHandle = setTimeout(() => {
-            hasQueueResolved = this.resolveQueue();
-        }, this._interval)
+       
+        // 次タスク起動タイマー起動
+        setTimeout(() => {
+            const entry = this._queue.shift();
+            console.log("entry:", entry);
+            console.log(this)
+            if (entry) {
+                entry.resolve();
+            } else {
+                this._counter--;
+            }
+        }, this._interval);
 
         // task実行
-        const result = await task();
-        if (!hasQueueResolved) {
-            clearTimeout(counterHandle);
-            // 実行待ちのタスクがない場合、カウンターを減らす
-            if (!this.resolveQueue()) {
-                this.counter--;
-                console.log(`counter: ${this.counter}`);
-            }
+        try {
+            const result: T = await task();
+            this._result.push({ result });
+
+        } catch (error) {
+            this._result.push({ error });
         }
-        return result;
+        
+        return;
     }
 
-    protected resolveQueue(): boolean {
-        const entry = this.queue.shift();
-        if (entry) {
-            entry.resolve();
-            return true;
-        }
-        return false;
-    }
 }
 

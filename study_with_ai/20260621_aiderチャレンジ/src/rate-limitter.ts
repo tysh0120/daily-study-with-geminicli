@@ -5,10 +5,6 @@ type QueueEntry = {
 
 export class RateLimitter<T> {
     private _queue: QueueEntry[] = [];
-    private _result: {
-        result?: T,
-        error?: unknown
-    }[]= [];
     private _counter: number = 0;
     private _limit: number;
     private _interval: number;
@@ -27,13 +23,11 @@ export class RateLimitter<T> {
      * タスクを指定されたlimit、intervalで実行制御する
      * @param: task: タスク
      */
-    public async run(task: any) {
+    public async run(task: () => Promise<T>): Promise<T> {
         if (this._counter < this._limit) {
             this._counter++;
-            console.log(`counter: ${this._counter}`);
         } else {
             // 実行枠いっぱいならqueueに登録して待ち
-            console.log('いっぱいだった', this._counter, this._limit);
             await new Promise((resolve, reject) => {
                 this._queue.push({ resolve, reject });
             });
@@ -42,8 +36,6 @@ export class RateLimitter<T> {
         // 次タスク起動タイマー起動
         setTimeout(() => {
             const entry = this._queue.shift();
-            console.log("entry:", entry);
-            console.log(this)
             if (entry) {
                 entry.resolve();
             } else {
@@ -52,15 +44,7 @@ export class RateLimitter<T> {
         }, this._interval);
 
         // task実行
-        try {
-            const result: T = await task();
-            this._result.push({ result });
-
-        } catch (error) {
-            this._result.push({ error });
-        }
-        
-        return;
+        return task();
     }
 
 }

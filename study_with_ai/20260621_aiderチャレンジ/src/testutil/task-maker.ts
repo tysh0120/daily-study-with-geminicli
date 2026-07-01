@@ -44,12 +44,12 @@ export class TaskMaker<T> {
         taskRecord.endTaskCount = this._taskCount;
     }
 
-    makeTask(name: string): TaskHandle<T | undefined> {
+    makeTask(name: string): TaskHandle<T> {
         const taskRecord: TaskRecord = { name };
-        let resolveFunc: (val?: T) => void;
-        let rejectFunc: (err?: unknown) => void;
+        let resolveFunc: (val: T) => void;
+        let rejectFunc: (err: unknown) => void;
 
-        const promise = new Promise<T | undefined>((resolve, reject) => {
+        const promise = new Promise<T>((resolve, reject) => {
             resolveFunc = resolve;
             rejectFunc = reject;
         });
@@ -61,7 +61,7 @@ export class TaskMaker<T> {
                 this._taskRecords.set(name, taskRecord);
                 return promise;
             },
-            resolve: (val?: T) => {
+            resolve: (val: T) => {
                 console.log('resolve called');
                 this._taskCount--;
                 this._setEndRecord(taskRecord);

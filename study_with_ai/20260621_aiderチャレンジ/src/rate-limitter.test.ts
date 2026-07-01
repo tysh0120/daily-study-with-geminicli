@@ -8,7 +8,7 @@ async function sleep(ms: number): Promise<void> {
 
 
 describe('RateLimitter', () => {
-    let rateLimitter: RateLimitter;
+    let rateLimitter: RateLimitter<string>;
     let taskMaker: TaskMaker<string>;
 
     beforeEach(() => {
@@ -21,25 +21,29 @@ describe('RateLimitter', () => {
         const handle2 = taskMaker.makeTask('task2');
         const handle3 = taskMaker.makeTask('task3');
 
-        rateLimitter.run(handle1.task);
-        rateLimitter.run(handle2.task);
-        rateLimitter.run(handle3.task);
+        const result1 = rateLimitter.run(handle1.task);
+        const result2 = rateLimitter.run(handle2.task);
+        const result3 = rateLimitter.run(handle3.task);
         
         expect(taskMaker.getTaskCount()).toBe(2);
         
-        handle1.resolve('success');
+        handle1.resolve('success1');
         expect(taskMaker.getTaskCount()).toBe(1);
+        expect(await result1).toBe('success1');
+
         await sleep(110);
         expect(taskMaker.getTaskCount()).toBe(2);
        
-        handle2.resolve('success');
+        handle2.resolve('success2');
         sleep(5);
         expect(taskMaker.getTaskCount()).toBe(1);
+        expect(await result2).toBe('success2');
  
-        handle3.resolve('success');
+        handle3.resolve('success3');
         sleep(5);
         expect(taskMaker.getTaskCount()).toBe(0);
-
+        expect(await result3).toBe('success3');
+ 
         expect(taskMaker.getTaskRecords().size).toBe(3);
         console.log(taskMaker.getTaskRecords());
 

@@ -20,12 +20,12 @@ describe('TestMaker', () => {
 
     test('reject test', async () => {
         const handle1 = taskMaker.makeTask('test1');
-
         handle1.task();
+       
         expect(taskMaker.getTaskCount()).toBe(1);
 
-        expect(async () => handle1.reject(new Error('test error'))).rejects.toThrow('test error');
-        await new Promise(resolve => setTimeout(resolve, 100));
+        handle1.reject(new Error('test error'));
+        expect(handle1.promise).rejects.toThrow('test error');
         expect(taskMaker.getTaskCount()).toBe(0);
     });
 

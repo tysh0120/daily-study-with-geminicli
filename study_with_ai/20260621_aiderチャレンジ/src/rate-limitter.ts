@@ -1,6 +1,6 @@
 type QueueEntry = {
-    resolve: (value?: unknown) => void,
-    reject: (error?: unknown) => void
+    resolve: (_?: void) => void,
+    reject: (error?: Error) => void
 }
 
 export class RateLimitter<T> {

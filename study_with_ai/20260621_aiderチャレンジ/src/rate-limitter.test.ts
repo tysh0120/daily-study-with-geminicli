@@ -35,17 +35,16 @@ describe('RateLimitter', () => {
         expect(taskMaker.getTaskCount()).toBe(2);
        
         handle2.resolve('success2');
-        sleep(5);
+        await sleep(5);
         expect(taskMaker.getTaskCount()).toBe(1);
         expect(await result2).toBe('success2');
  
         handle3.resolve('success3');
-        sleep(5);
+        await sleep(5);
         expect(taskMaker.getTaskCount()).toBe(0);
         expect(await result3).toBe('success3');
  
         expect(taskMaker.getTaskRecords().size).toBe(3);
-        console.log(taskMaker.getTaskRecords());
 
     });
 
@@ -72,17 +71,17 @@ describe('RateLimitter', () => {
         rateLimitter.run(handle2.task);
 
         handle1.resolve('ok');
-
+        await sleep(5);
         expect(taskMaker.getTaskCount()).toBe(1);
  
         handle2.resolve('ok');
+        await sleep(5);
         expect(taskMaker.getTaskCount()).toBe(0);
 
         const handle3 = taskMaker.makeTask('task3');
         rateLimitter.run(handle3.task);
 
         await sleep(100);
-        console.log(taskMaker);
         expect(taskMaker.getTaskCount()).toBe(1);
     });
 });

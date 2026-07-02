@@ -62,14 +62,12 @@ export class TaskMaker<T> {
                 return promise;
             },
             resolve: (val: T) => {
-                console.log('resolve called');
                 this._taskCount--;
                 this._setEndRecord(taskRecord);
                 this._taskRecords.set(name, taskRecord);
                 resolveFunc(val);
             },
             reject: (err?: unknown) => {
-                console.log(`reject called ${err}`);
                 this._taskCount--;
                 this._setEndRecord(taskRecord);
                 this._taskRecords.set(name, taskRecord);

@@ -5,6 +5,7 @@ type QueueEntry = {
 
 export class RateLimitter<T> {
     private _queue: QueueEntry[] = [];
+    private _timers: Set<NodeJS.Timeout> = new Set();
     private _counter: number = 0;
     private _limit: number;
     private _interval: number;
@@ -34,18 +35,30 @@ export class RateLimitter<T> {
         }
        
         // 次タスク起動タイマー起動
-        setTimeout(() => {
+        const timer = setTimeout(() => {
             const entry = this._queue.shift();
             if (entry) {
                 entry.resolve();
             } else {
                 this._counter--;
             }
+            this._timers.delete(timer);
         }, this._interval);
+        this._timers.add(timer);
 
         // task実行
         return task();
     }
 
+    public shutdown() {
+        this._queue.forEach((q) => {
+            q.reject(new Error('shutdown'));
+        });
+        this._queue.length = 0;
+        this._timers.forEach((t) => {
+            clearTimeout(t);
+        });
+        this._timers.clear();
+    }
 }
 

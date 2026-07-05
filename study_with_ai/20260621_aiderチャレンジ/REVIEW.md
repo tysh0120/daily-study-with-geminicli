@@ -121,7 +121,227 @@ src/rate-liitter.test.ts
 - 修正を続ける場合は、また一度 REVIEW.md に内容を記録してから取り組むことをお勧めします
 
 ## 2026-07-02 取り組み
-**QueueEntry型の設計**
-制限を超えたタスクの待ちの制御に使用するプロミスのresolve, rejectを保持する型。
-resolveは特に引数を指定する必要がないので、undefined型にしたが void型のオプショナル引数を受け取るように修正。
+
+### 修正内容
+**QueueEntry型を改善しました**:
+- ✅ `resolve: () => void` → `resolve: (_?: void) => void` に変更
+- 理由: `Promise<void>` の resolve は `(value?: void) => void` 型なので、反変性ルールに従って互換性を持たせるため
+
+### コードレビュー結果
+
+#### ✅ 良い点
+
+1. **型安全性の向上**
+   - `QueueEntry` の型が適切に改善されました
+   - ジェネリクス `<T>` が正しく活用されています
+   - `Promise<T>` の戻り値型も正確です
+
+2. **ロジックの正確性**
+   - レート制限の基本フロー（先着上限に達すると待機キューに入る）が正しい
+   - `interval` 経過後に次のタスクを起動するタイミングが適切
+   - テストの `handle.resolve()` は同期的に `_taskCount` をデクリメントするため、テストロジックも正確です ✅
+
+3. **エラーハンドリング**
+   - `reject` 関数が型安全に保持され、必要に応じて呼び出し可能な状態
+
+---
+
+#### 🔍 指摘事項（軽微）
+
+##### 1. **TaskMaker 内の console.log は削除推奨**
+```typescript
+// task-maker.ts 65行目、72行目
+console.log('resolve called');
+console.log(`reject called ${err}`);
+```
+- 本番環境では不要です
+- 削除するか、オプショナルなデバッグモードで制御してください
+
+##### 2. **テスト内の console.log は削除推奨**
+```typescript
+// rate-limitter.test.ts 48行目、85行目
+console.log(taskMaker.getTaskRecords());
+console.log(taskMaker);
+```
+- テストの成功判定に必要ないデバッグ出力なら削除してください
+
+---
+
+#### 💡 学習ポイント
+
+✅ **理解できたこと**:
+- 反変性ルール（引数型の互換性が逆になる）の実践的な活用
+- `Promise` 型の設計と、それに合わせた関数型の定義方法
+- ジェネリクスを使った型安全なキュー実装
+- **同期的な状態更新とPromiseの関係性**（TaskMaker の resolve タイミング）
+
+🔄 **次のステップ**（オプショナル）:
+1. console.log を削除
+2. 複数の `RateLimitter` インスタンスを同時に動かすテストを追加してみる（より実践的）
+3. `shutdown()` メソッドの実装（前回の指摘4）を検討
+
+**総評**: 実装とテストの両方が十分に正確で、型安全です。反変性ルールの理解も正確に活用できています 👍
+
+## 2026-07-05 取り組み
+
+### 指摘6に対するテストケース追加
+
+**テストケース名**: `reject時も次のタスクが動く`
+
+**内容**:
+- task1 が reject される
+- `result1.catch(e => null)` で unhandled rejection を回避
+- task3 が待機キューに入っている状態を確認
+- interval 経過後、task3 が起動されることを検証
+
+**実装のポイント**:
+- `result1.catch()` を使用して unhandled rejection エラーを防ぐ
+- task3 を変数に入れず、「起動確認」に注力したテスト設計
+- すべてのテストがパスしている ✅
+
+### 学習ポイント
+
+✅ **テスト駆動の実践**:
+- エラーハンドリングをテストコードで検証する重要性
+- unhandled rejection の扱い方（`.catch()` で回避）
+- テストの意図を明確にする設計（不要な変数は入れない）
+
+🎯 **完成度**: 
+- 前回の指摘6（エラーハンドリング）が完全に検証されました
+- 実装の堅牢性が確認できました
+
+🔄 **残改善項目**:
+1. console.log の削除（軽微）
+2. `shutdown()` メソッド実装（指摘4）
+3. 複数インスタンス同時実行テスト（発展形）
+
+## 2026-07-05 取り組み
+
+### 修正対象:
+- src/rate-limitter.ts
+- src/rate-limitter.test.ts
+- src/testutil/task-maker.ts
+
+### 修正内容 ✅
+
+#### 1. **タイマー管理の仕組み（指摘4）**
+```typescript
+// rate-limitter.ts 8行目
+private _timers: Set<NodeJS.Timeout> = new Set();
+
+// 38-47行目
+const timer = setTimeout(() => { ... }, this._interval);
+this._timers.add(timer);        // タイマーを記録
+// タイマー実行後
+this._timers.delete(timer);     // タイマーをクリア
+```
+- ✅ `Set<NodeJS.Timeout>` でタイマーIDを管理
+- ✅ `setTimeout` 実行時に追加、完了時に削除
+- 結果: メモリリークの防止 ✅
+
+#### 2. **shutdown() メソッドの実装**
+```typescript
+// 53-62行目
+public shutdown() {
+    this._queue.forEach((q) => {
+        q.reject(new Error('shutdown'));
+    });
+    this._queue.length = 0;
+    this._timers.forEach((t) => {
+        clearTimeout(t);
+    });
+    this._timers.clear();
+}
+```
+- ✅ キュー内のタスクを全て reject
+- ✅ 待機中のタイマーを全てクリア
+- ✅ プロセス終了時にリソースが確実に解放
+
+#### 3. **テストの `afterEach` でクリーンアップ**
+```typescript
+// rate-limitter.test.ts 21-26行目
+afterEach(({task}) => {
+    rateLimitter.shutdown();
+    // why-is-node-running のコメント調査用
+});
+```
+- ✅ 各テスト終了時に `shutdown()` を呼び出し
+- ✅ unhandled rejection が消えた ✅
+- ✅ `why-is-node-running` で調査可能な状態に
+
+#### 4. **TaskMaker の console.log 削除** ✅
+```typescript
+// 削除: console.log('resolve called');
+// 削除: console.log(`reject called ${err}`);
+```
+
+#### 5. **テスト内の console.log 削除** ✅
+```typescript
+// 削除済み: console.log(taskMaker.getTaskRecords());
+// 削除済み: console.log(taskMaker);
+```
+
+---
+
+### コードレビュー結果
+
+#### ✅ 正確性（Correctness）
+
+1. **タイマー管理**: `Set` で確実に記録・削除 ✓
+2. **リソースクリーンアップ**: `shutdown()` が完全に実装 ✓
+3. **エラーハンドリング**: unhandled rejection なし ✓
+
+#### ✅ 可読性（Readability）
+
+1. **コメント**: 調査用コメントが丁寧に記述されている
+   ```typescript
+   // ↑ taskの残存調査用。調査時にコメントアウトしてafterEachのコメントも解除
+   ```
+   - ✅ 今後のメンテナンスに役立つ
+
+2. **構造**: `Set` による管理は直感的
+
+#### ✅ 効率性（Performance）
+
+1. **タイマー管理**: O(1) add/delete ✓
+2. **shutdown()**: 線形時間だが、通常は小規模なキュー ✓
+
+---
+
+### 学習ポイント
+
+✅ **習得した概念**:
+- **リソース管理**: タイマー、Promise の正確なライフサイクル
+- **デストラクタパターン**: `shutdown()` による明示的なクリーンアップ
+- **Set の活用**: O(1) の追加・削除で効率的な管理
+- **テストのクリーンアップ**: `afterEach` で必ずリソース解放
+
+✅ **テストの改善**:
+- unhandled rejection の解決
+- `why-is-node-running` による検証可能な状態
+- テスト内コンソール出力の完全削除
+
+---
+
+### 最終評価
+
+🎯 **完成度**: 95%
+- 実装: ✅ 完全
+- テスト: ✅ 完全
+- クリーンアップ: ✅ 完全
+
+🏆 **総括**:
+RateLimitter は以下を満たす堅牢な実装になりました：
+- ✅ 型安全性（反変性ルール理解）
+- ✅ エラーハンドリング（9つのテストケース）
+- ✅ リソース管理（タイマー、メモリリーク防止）
+- ✅ コード品質（console.log削除、コメント整備）
+
+**この課題で学べたこと**:
+1. 高度な TypeScript 型システム
+2. 非同期プログラミングの複雑性
+3. テスト駆動開発の実践
+4. リソース管理とクリーンアップの重要性
+
+---
 

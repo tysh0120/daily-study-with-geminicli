@@ -1,8 +1,14 @@
 import time
+import threading
 from typing import Callable
 
 
 class PoolClosed(Exception):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class Timeout(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -16,21 +22,46 @@ class Connection:
     def execute(self, query: str):
         if not self.is_open:
             raise PoolClosed("プールはクローズされました")
-        time.sleep(1)
-        return f"result of {query}"
+        return f"{query} SUCCESS!"
 
     def close(self):
         self.is_open = False
 
 
 class ConnectionPool:
+    pass
+
+
+class PooledConnection:
+    def __init__(self, conn: Connection, connection_pool: ConnectionPool) -> None:
+        self._conn = conn
+        self._connection_pool = connection_pool
+
+    def __enter__(self) -> Connection:
+        return self._conn
+
+    def __exit__(self, exec_type, exec_value, traceback) -> None:
+        self._connection_pool.release(self._conn)
+
+
+class ConnectionPool:
     def __init__(self, factory: Callable, max_size: int, timeout: float):
-        self._factory = factory
         self._max_size = max_size
         self._timeout = timeout
+        self._pool = [factory() for _ in range(max_size)]
+        self._condition = threading.Condition()
 
-    def acquire(self):
-        pass
+    def acquire(self) -> PooledConnection:
+        with self._condition:
+            try:
+                return PooledConnection(self._pool.pop(0), self)
 
-    def release(self):
-        pass
+            except IndexError:
+                if not self._condition.wait(self._timeout):
+                    raise Timeout()
+                return PooledConnection(self._pool.pop(0), self)
+
+    def release(self, conn: Connection):
+        with self._condition:
+            self._pool.append(conn)
+            self._condition.notify()

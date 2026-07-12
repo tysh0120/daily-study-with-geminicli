@@ -1,4 +1,4 @@
-import time
+from __future__ import annotations
 import threading
 from typing import Callable
 
@@ -28,10 +28,6 @@ class Connection:
         self.is_open = False
 
 
-class ConnectionPool:
-    pass
-
-
 class PooledConnection:
     def __init__(self, conn: Connection, connection_pool: ConnectionPool) -> None:
         self._conn = conn
@@ -48,7 +44,8 @@ class ConnectionPool:
     def __init__(self, factory: Callable, max_size: int, timeout: float):
         self._max_size = max_size
         self._timeout = timeout
-        self._pool = [factory() for _ in range(max_size)]
+        self._all_connections = tuple(factory() for _ in range(max_size))
+        self._pool = list(self._all_connections)
         self._condition = threading.Condition()
 
     def acquire(self) -> PooledConnection:
@@ -65,3 +62,7 @@ class ConnectionPool:
         with self._condition:
             self._pool.append(conn)
             self._condition.notify()
+
+    def close(self):
+        for conn in self._all_connections:
+            conn.close()

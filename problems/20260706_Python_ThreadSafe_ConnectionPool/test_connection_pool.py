@@ -1,6 +1,6 @@
 import unittest
 import threading
-from connection_pool import Connection, ConnectionPool, Timeout
+from connection_pool import Connection, ConnectionPool, Timeout, PoolClosed
 from dataclasses import dataclass
 from typing import Callable
 import time
@@ -75,16 +75,16 @@ class ConnectionPoolTest(unittest.TestCase):
         self.assertEqual(0, len(pw3.get_results()))
 
         pw1.resume()
-        time.sleep(0)
+        time.sleep(0.01)
         self.assertEqual("QUERY SUCCESS!", pw1.get_results()[0]["result"])
 
         pw3.resume()
-        time.sleep(0)
+        time.sleep(0.01)
         self.assertEqual("QUERY SUCCESS!", pw3.get_results()[0]["result"])
 
         self.assertEqual(0, len(pw2.get_results()))
         pw2.resume()
-        time.sleep(0)
+        time.sleep(0.01)
         self.assertEqual("QUERY SUCCESS!", pw2.get_results()[0]["result"])
 
     def test_acquire_timeout(self):
@@ -99,3 +99,28 @@ class ConnectionPoolTest(unittest.TestCase):
         pw1.resume()
         pw2.resume()
         pw3.resume()
+
+    def test_close_stops_operation(self):
+        pw1 = PoolWorkerThread(self._pool)
+        pw2 = PoolWorkerThread(self._pool)
+        pw3 = PoolWorkerThread(self._pool)
+        pw1.execute(exec_conn)  # 1, 2 は枠内のため即獲得
+        pw2.execute(exec_conn)
+        pw3.execute(exec_conn)  # 3 は枠外のためwait
+
+        self._pool.close()
+
+        pw1.resume()
+        pw2.resume()
+        pw3.resume()
+
+        time.sleep(0.1)
+        self.assertIsInstance(pw1.get_results()[0]["error"], PoolClosed)
+        self.assertIsInstance(pw2.get_results()[0]["error"], PoolClosed)
+        self.assertIsInstance(pw3.get_results()[0]["error"], PoolClosed)
+
+        pw4 = PoolWorkerThread(self._pool)
+        pw4.execute(exec_conn)
+        pw4.resume()
+        time.sleep(0.1)
+        self.assertIsInstance(pw4.get_results()[0]["error"], PoolClosed)

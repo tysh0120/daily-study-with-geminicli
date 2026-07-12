@@ -47,8 +47,11 @@ class ConnectionPool:
         self._all_connections = tuple(factory() for _ in range(max_size))
         self._pool = list(self._all_connections)
         self._condition = threading.Condition()
+        self._is_open = True
 
     def acquire(self) -> PooledConnection:
+        if not self._is_open:
+            raise PoolClosed("プールはクローズされました!")
         with self._condition:
             try:
                 return PooledConnection(self._pool.pop(0), self)
@@ -64,5 +67,6 @@ class ConnectionPool:
             self._condition.notify()
 
     def close(self):
+        self._is_open = False
         for conn in self._all_connections:
             conn.close()

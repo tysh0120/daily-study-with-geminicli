@@ -6,12 +6,6 @@ from typing import Callable
 import time
 
 
-@dataclass
-class ThreadAndEvent:
-    thread: threading.Thread
-    event: threading.Event | None
-
-
 class PoolWorkerThread:
     """ConnectionPoolを利用したスレッドの実行"""
 

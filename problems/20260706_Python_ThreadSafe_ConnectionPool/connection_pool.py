@@ -1,6 +1,7 @@
 from __future__ import annotations
 import threading
 from typing import Callable
+import time
 
 
 class PoolClosed(Exception):
@@ -53,13 +54,12 @@ class ConnectionPool:
         with self._condition:
             if not self._is_open:
                 raise PoolClosed("プールはクローズされました!")
-            try:
-                return PooledConnection(self._pool.pop(0), self)
-
-            except IndexError:
-                if not self._condition.wait(self._timeout):
-                    raise Timeout()
-                return PooledConnection(self._pool.pop(0), self)
+            deadline = time.monotonic() + self._timeout
+            while len(self._pool) == 0:
+                if time.monotonic() >= deadline:
+                    raise Timeout("時間切れです")
+                self._condition.wait(deadline - time.monotonic())
+            return PooledConnection(self._pool.pop(0), self)
 
     def release(self, conn: Connection):
         with self._condition:
@@ -71,3 +71,4 @@ class ConnectionPool:
             self._is_open = False
             for conn in self._all_connections:
                 conn.close()
+            self._condition.notify_all()

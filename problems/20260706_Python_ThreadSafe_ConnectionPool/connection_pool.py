@@ -52,17 +52,19 @@ class ConnectionPool:
 
     def acquire(self) -> PooledConnection:
         with self._condition:
-            if not self._is_open:
-                raise PoolClosed("プールはクローズされました!")
             deadline = time.monotonic() + self._timeout
-            while len(self._pool) == 0:
+            while self._is_open and len(self._pool) == 0:
                 if time.monotonic() >= deadline:
                     raise Timeout("時間切れです")
                 self._condition.wait(deadline - time.monotonic())
+            if not self._is_open:
+                raise PoolClosed("プールはクローズされました!")
             return PooledConnection(self._pool.pop(0), self)
 
     def release(self, conn: Connection):
         with self._condition:
+            if not self._is_open:
+                return
             self._pool.append(conn)
             self._condition.notify()
 

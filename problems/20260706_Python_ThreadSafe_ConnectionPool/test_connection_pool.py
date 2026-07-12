@@ -1,6 +1,6 @@
 import unittest
 import threading
-from connection_pool import Connection, ConnectionPool, Timeout, PoolClosed
+from connection_pool import Connection, ConnectionPool, PoolTimeout, PoolClosed
 from dataclasses import dataclass
 from typing import Callable
 import time
@@ -89,7 +89,7 @@ class ConnectionPoolTest(unittest.TestCase):
         pw2.execute(exec_conn)
         pw3.execute(exec_conn)  # 3 は枠外のためwait
         time.sleep(0.2)  # タイムアウト発生
-        self.assertIsInstance(pw3.get_results()[0]["error"], Timeout)
+        self.assertIsInstance(pw3.get_results()[0]["error"], PoolTimeout)
         pw1.resume()
         pw2.resume()
         pw3.resume()

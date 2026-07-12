@@ -9,7 +9,7 @@ class PoolClosed(Exception):
         super().__init__(*args, **kwargs)
 
 
-class Timeout(Exception):
+class PoolTimeout(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -55,7 +55,7 @@ class ConnectionPool:
             deadline = time.monotonic() + self._timeout
             while self._is_open and len(self._pool) == 0:
                 if time.monotonic() >= deadline:
-                    raise Timeout("時間切れです")
+                    raise PoolTimeout("時間切れです")
                 self._condition.wait(deadline - time.monotonic())
             if not self._is_open:
                 raise PoolClosed("プールはクローズされました!")

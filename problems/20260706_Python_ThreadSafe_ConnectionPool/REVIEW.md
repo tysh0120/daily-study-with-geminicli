@@ -50,7 +50,7 @@
 - `close()` は `with self._condition:` 内で `self._closed=True`、全コネクション close、`notify_all()`
 - `release()` は closed 時の扱い（再プールしない等）を明確化
 
-## 2026-07-12 今回の取り組み
+## 第２回レビュー 2026-07-12 今回の取り組み
 1. acquire()の再判定をループにした
 2. closeの際にnotify_allで待機中のスレッドも即座に状態反映
 3. closeの際、close状態チェックをLock内で行う（競合排除）
@@ -89,3 +89,61 @@
 
 ### 総評
 前回指摘の本質はかなり押さえられています。あと1段階、`close` と待機復帰の境界条件を詰めれば、堅牢な実装として十分完成度が高いです。
+## 2026-07-12 3回目レビュー: 今回の取り組み
+- acquire() の待機ループの条件見直し。closedが判定されるよう修正。
+- close時のnotify_allのコール修正：Conditionに対して１回コールすればよいのを接続の数だけコールしていた
+- releaseはclosedの場合はプールに返却などの処理を行わない。
+
+## 2026-07-12 3回目レビュー（Copilot CLI）
+
+### 評価（3観点）
+- 正確性: ○（ほぼ良い。1点だけ競合余地あり）
+- 可読性: ○
+- 効率性: ○
+
+### 良くなった点
+1. `acquire()` が `while self._is_open and len(self._pool) == 0` になり、待機復帰時の close 判定が正しく入った
+2. `close()` の `notify_all()` がループ外1回になり、実装が整理された
+3. close 後に `acquire()` が `PoolClosed` を返す経路が明確になった
+
+### 残り1点（重要）
+1. **`release()` の `_is_open` チェックがロック外**
+   - 現在:
+     - `if not self._is_open: return`（ロック外）
+     - その後 `with self._condition:` で append
+   - この間に `close()` が入ると、closed 後に append される競合余地が残る
+
+### 修正ヒント
+- `release()` はチェックも更新も同じロック内で行う:
+  - `with self._condition:`
+  - `if not self._is_open: return`
+  - `self._pool.append(conn); self._condition.notify()`
+
+### 総評
+前回までの主要指摘はほぼ解消できています。`release()` のロック境界を揃えれば、競合面もかなり堅牢になります。
+
+## 2026-07-12 第4回レビュー: 今回の取り組み
+1. release() の _is_open チェックがロック外になっていたのをロック内で行うよう修正
+
+## 2026-07-12 4回目レビュー結果（Copilot CLI）
+
+### 評価（3観点）
+- 正確性: ◎
+- 可読性: ○
+- 効率性: ○
+
+### レビュー結果
+今回の修正で、前回の最終指摘（`release()` の check-then-act の非アトミック性）は解消されています。
+
+- `release()` が `with self._condition:` 内で
+  - `_is_open` 判定
+  - `append`
+  - `notify`
+  を一貫して実行しており、競合条件を正しく回避できています。
+
+### 補足（軽微）
+- 例外名 `Timeout` は組み込み系と混同しやすいので、将来的に `PoolTimeout` などへ改名すると読みやすくなります（必須ではありません）。
+
+### 総評
+この課題の主要要件（スレッド安全性、待機/通知、タイムアウト、close時の状態反映、with による自動返却）は満たせています。  
+実装は十分に堅牢です。完了レベルです。

@@ -50,9 +50,9 @@ class ConnectionPool:
         self._is_open = True
 
     def acquire(self) -> PooledConnection:
-        if not self._is_open:
-            raise PoolClosed("プールはクローズされました!")
         with self._condition:
+            if not self._is_open:
+                raise PoolClosed("プールはクローズされました!")
             try:
                 return PooledConnection(self._pool.pop(0), self)
 
@@ -67,6 +67,7 @@ class ConnectionPool:
             self._condition.notify()
 
     def close(self):
-        self._is_open = False
-        for conn in self._all_connections:
-            conn.close()
+        with self._condition:
+            self._is_open = False
+            for conn in self._all_connections:
+                conn.close()

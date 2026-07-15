@@ -40,3 +40,14 @@ I added lock to such methods.
   imperfect English to practice."
 - "Please point out unclear English expression also." -> "Please point out any
   unclear English expressions as well."
+
+## 2026-07-15 
+### features
+- Fixed the problem of inconsistent LRU posision between set() and get().
+  I decided to use following posisioning rule: left: old <--->  right: new
+  This will effective for the efficiency problem: rebuilding the dictionary in `get()`
+
+### English lesson
+- I told you to check my imperfect English and point out the imperfect expression if any.
+- Please check atomic consistency as well.
+

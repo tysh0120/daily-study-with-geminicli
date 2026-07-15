@@ -69,6 +69,22 @@ class TTLCacheTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.cache.set("a", "first", ttl=-1.0)
 
+    def test_new_key_added_top_position(self) -> None:
+        self.cache.set("a", "first", ttl=1)
+        self.cache.set("b", "second", ttl=1)
+        self.cache.set("c", "third", ttl=1)
+        with self.assertRaises(KeyError):
+            self.cache.get("a")
+
+    def test_update_moves_top_position(self) -> None:
+        self.cache.set("a", "first", ttl=1)
+        self.cache.set("b", "second", ttl=1)
+
+        self.cache.set("b", "move to first", ttl=1)
+        self.cache.set("c", "third", ttl=1)
+        with self.assertRaises(KeyError):
+            self.cache.get("a")
+
 
 if __name__ == "__main__":
     unittest.main()

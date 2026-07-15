@@ -9,6 +9,10 @@ K = TypeVar("K", bound=Hashable)
 V = TypeVar("V")
 
 
+def move_to_top(dictionary: dict, key: Hashable) -> dict:
+    return {**{key: dictionary.pop(key)}, **dictionary}
+
+
 class TTLCache(Generic[K, V]):
     def __init__(
         self,
@@ -19,7 +23,7 @@ class TTLCache(Generic[K, V]):
             raise ValueError()
         self._max_size = max_size
         self._clock = clock
-        self._queue = {}
+        self._cache = {}
         self._lock = threading.RLock()
 
     def set(self, key: K, value: V, ttl: float) -> None:
@@ -27,34 +31,33 @@ class TTLCache(Generic[K, V]):
             raise ValueError()
         with self._lock:
             self._delete_expired()
-            if key in self._queue or len(self._queue) < self._max_size:
-                self._queue[key] = dict(value=value, ttl=self._clock() + ttl)
-            else:
-                # remove last entry in queue (queue is sorted by Last Used Time)
-                least_used_key = list(self._queue.keys())[-1]
-                del self._queue[least_used_key]
-                # add specified entry to top
-                self._queue[key] = dict(value=value, ttl=self._clock() + ttl)
+            if key in self._cache:
+                del self._cache[key]
+            elif len(self._cache) == self._max_size:
+                # remove the leftmost position (cache is sorted by Last Used Time ascending)
+                least_used_key = list(self._cache.keys())[0]
+                del self._cache[least_used_key]
+            # add specified entry to the rightmost position
+            self._cache[key] = dict(value=value, ttl=self._clock() + ttl)
 
     def get(self, key: K) -> V:
         with self._lock:
-            if key not in self._queue or key in self._expired_keys():
+            if key not in self._cache or key in self._expired_keys():
                 raise KeyError()
-            # move to front (LRU)
-            entry = self._queue[key]
-            del self._queue[key]
-            self._queue = {**{key: entry}, **self._queue}
-            return self._queue[key]["value"]
+            # move to the rightmost (inverse LRU)
+            self._cache[key] = self._cache.pop(key)
+            return self._cache[key]["value"]
 
     def _expired_keys(self):
-        now = self._clock()
-        return [k for k in self._queue if self._queue[k]["ttl"] <= now]
+        with self._lock:
+            now = self._clock()
+            return [k for k in self._cache if self._cache[k]["ttl"] <= now]
 
     def _delete_expired(self):
         with self._lock:
             for key in self._expired_keys():
-                del self._queue[key]
+                del self._cache[key]
 
     def __len__(self) -> int:
         with self._lock:
-            return len(self._queue) - len(self._expired_keys())
+            return len(self._cache) - len(self._expired_keys())

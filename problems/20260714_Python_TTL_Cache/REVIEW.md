@@ -51,3 +51,36 @@ I added lock to such methods.
 - I told you to check my imperfect English and point out the imperfect expression if any.
 - Please check atomic consistency as well.
 
+## Review (2026-07-15, Follow-up)
+
+### Correctness: Good
+
+- The rule that the left side is least recent and the right side is most recent
+  is now consistent between `set()` and `get()`. Updating an entry also moves
+  it to the right, so the previous LRU ordering issue is resolved.
+- Adding a capacity test after an update with `FakeClock` is a good improvement.
+
+### Readability: Needs minor revision
+
+- Remove the unused `move_to_top()` function. Its "top" terminology also
+  conflicts with the current rule that the rightmost entry is most recent.
+
+### Efficiency: Needs revision
+
+- `get()` no longer rebuilds the dictionary, which is an improvement. However,
+  `list(self._cache.keys())[0]` creates a list of every key when eviction needs
+  only the first one, making it O(n). Since the dictionary preserves order,
+  find a way to retrieve only its first key through an iterator.
+
+### English
+
+- "Fixed the problem of inconsistent LRU posision between set() and get()." ->
+  "Fixed the inconsistency in LRU positioning between `set()` and `get()`."
+- "I decided to use following posisioning rule" -> "I decided to use the
+  following positioning rule: left: oldest <--> right: newest."
+- "This will effective for the efficiency problem" -> "This addresses the
+  dictionary-rebuilding efficiency issue in `get()`."
+- "I told you to check my imperfect English..." -> "Please check my English
+  and point out any unclear expressions."
+- "Please check atomic consistency as well." -> "Please also check for
+  atomicity issues."

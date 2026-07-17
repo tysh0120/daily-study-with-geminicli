@@ -87,5 +87,27 @@ I added lock to such methods.
 
 ## 2026-07-16 
 ### features
-- Fixed the inefficient processing to know leftmost key in the dictionary.
+- Fixed the inefficient processing while determining the leftmost key in the dictionary.
 
+## Review (2026-07-17)
+
+### Correctness: Needs minor revision
+
+- The previous LRU and eviction-cost issues are resolved. `next(iter(...))`
+  retrieves only the least recently used key, and the unused helper has been
+  removed.
+- `get()` detects an expired entry but leaves it in `_cache` before raising
+  `KeyError`. Delete that entry before raising the exception so expiration is
+  handled consistently by the public operation that discovers it.
+
+### Readability: Good
+
+- The leftmost-oldest / rightmost-newest rule is reflected clearly in the
+  insertion, access, and eviction code.
+
+### Efficiency: Needs minor revision
+
+- The first-key lookup is now O(1), as intended.
+- Removing an expired key in `get()` also prevents repeated failed reads of
+  the same key from repeatedly scanning all cache entries through
+  `_expired_keys()`.

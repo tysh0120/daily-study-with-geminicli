@@ -84,3 +84,8 @@ I added lock to such methods.
   and point out any unclear expressions."
 - "Please check atomic consistency as well." -> "Please also check for
   atomicity issues."
+
+## 2026-07-16 
+### features
+- Fixed the inefficient processing to know leftmost key in the dictionary.
+

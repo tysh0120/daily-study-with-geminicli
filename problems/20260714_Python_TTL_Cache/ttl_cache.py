@@ -9,10 +9,6 @@ K = TypeVar("K", bound=Hashable)
 V = TypeVar("V")
 
 
-def move_to_top(dictionary: dict, key: Hashable) -> dict:
-    return {**{key: dictionary.pop(key)}, **dictionary}
-
-
 class TTLCache(Generic[K, V]):
     def __init__(
         self,
@@ -35,8 +31,7 @@ class TTLCache(Generic[K, V]):
                 del self._cache[key]
             elif len(self._cache) == self._max_size:
                 # remove the leftmost position (cache is sorted by Last Used Time ascending)
-                least_used_key = list(self._cache.keys())[0]
-                del self._cache[least_used_key]
+                del self._cache[next(iter(self._cache))]
             # add specified entry to the rightmost position
             self._cache[key] = dict(value=value, ttl=self._clock() + ttl)
 

@@ -37,7 +37,11 @@ class TTLCache(Generic[K, V]):
 
     def get(self, key: K) -> V:
         with self._lock:
-            if key not in self._cache or key in self._expired_keys():
+            if key not in self._cache:
+                raise KeyError()
+            now = self._clock()
+            if self._cache[key]["ttl"] <= now:
+                del self._cache[key]
                 raise KeyError()
             # move to the rightmost (inverse LRU)
             self._cache[key] = self._cache.pop(key)

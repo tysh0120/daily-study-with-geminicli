@@ -111,3 +111,9 @@ I added lock to such methods.
 - Removing an expired key in `get()` also prevents repeated failed reads of
   the same key from repeatedly scanning all cache entries through
   `_expired_keys()`.
+
+## 2026-07-16 
+### Features
+- Added the removal logic to `get()`: If an entry is expired, remove it from the cache
+  
+

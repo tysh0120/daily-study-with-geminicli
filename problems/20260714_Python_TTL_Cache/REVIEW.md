@@ -115,5 +115,25 @@ I added lock to such methods.
 ## 2026-07-16 
 ### Features
 - Added the removal logic to `get()`: If an entry is expired, remove it from the cache
-  
 
+## Review (2026-07-17, Approved)
+
+### Correctness: Good
+
+- `get()` checks only the requested key, removes it when expired, and then
+  raises `KeyError`. Normal reads no longer scan the entire cache.
+- The implementation satisfies TTL handling, LRU ordering, TTL refresh on
+  updates, capacity eviction, and input validation requirements.
+
+### Readability: Good
+
+- The leftmost-oldest / rightmost-newest ordering rule is applied consistently
+  throughout the implementation.
+
+### Efficiency: Good
+
+- Normal `get()` calls perform only a lookup, expiration check, and ordering
+  update. Expired-entry cleanup needed for capacity decisions is limited to
+  `set()`.
+
+Approved.
